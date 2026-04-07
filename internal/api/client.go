@@ -1,9 +1,12 @@
 // Package api provides a typed HTTP client for the Groundwork tRPC API.
 //
-// Each tRPC call is a POST to /api/trpc/<procedure> with a JSON body of the
-// form {"json": <input>} and a response of {"result":{"data":{"json":<output>}}}.
-// Superjson is used for serialization on the server, but for the types the TUI
-// needs, all values are plain JSON-compatible (no Date objects in inputs).
+// tRPC 11 protocol:
+//   - Queries:   GET /api/trpc/<procedure>?input=<url-encoded-json>
+//     Response: {"result":{"data":{"json":<output>}}}
+//   - Mutations: POST /api/trpc/<procedure>  body: {"json":<input>}
+//     Response: {"result":{"data":{"json":<output>}}}
+//
+// Auth: Authorization: Bearer <api_key>
 package api
 
 import (
@@ -12,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -51,40 +55,31 @@ type trpcResponse[T any] struct {
 	} `json:"error"`
 }
 
-func call[T any](c *Client, procedure string, input any) (T, error) {
-	var zero T
-
-	body, err := json.Marshal(trpcRequest{JSON: input})
-	if err != nil {
-		return zero, fmt.Errorf("marshal request: %w", err)
-	}
-
-	url := fmt.Sprintf("%s/api/trpc/%s", c.baseURL, procedure)
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return zero, fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return zero, fmt.Errorf("http request: %w", err)
+		return nil, fmt.Errorf("http request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return zero, fmt.Errorf("read body: %w", err)
+		return nil, fmt.Errorf("read body: %w", err)
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return zero, fmt.Errorf("unauthorized — check your API key")
+		return nil, fmt.Errorf("unauthorized — check your API key")
 	}
 	if resp.StatusCode >= 400 {
-		return zero, fmt.Errorf("server error %d: %s", resp.StatusCode, string(raw))
+		return nil, fmt.Errorf("server error %d: %s", resp.StatusCode, string(raw))
 	}
+	return raw, nil
+}
 
+func parseResponse[T any](raw []byte) (T, error) {
+	var zero T
 	var result trpcResponse[T]
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return zero, fmt.Errorf("unmarshal response: %w", err)
@@ -92,15 +87,62 @@ func call[T any](c *Client, procedure string, input any) (T, error) {
 	if result.Error != nil {
 		return zero, fmt.Errorf("tRPC error: %s", result.Error.Message)
 	}
-
 	return result.Result.Data.JSON, nil
+}
+
+// query sends a GET request for a tRPC query procedure.
+// Input is serialized as ?input=<url-encoded-json-wrapped-in-{"json":...}>
+func query[T any](c *Client, procedure string, input any) (T, error) {
+	var zero T
+
+	inputJSON, err := json.Marshal(trpcRequest{JSON: input})
+	if err != nil {
+		return zero, fmt.Errorf("marshal input: %w", err)
+	}
+
+	endpoint := fmt.Sprintf("%s/api/trpc/%s?input=%s",
+		c.baseURL, procedure, url.QueryEscape(string(inputJSON)))
+
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return zero, fmt.Errorf("build request: %w", err)
+	}
+
+	raw, err := c.doRequest(req)
+	if err != nil {
+		return zero, err
+	}
+	return parseResponse[T](raw)
+}
+
+// mutation sends a POST request for a tRPC mutation procedure.
+func mutation[T any](c *Client, procedure string, input any) (T, error) {
+	var zero T
+
+	body, err := json.Marshal(trpcRequest{JSON: input})
+	if err != nil {
+		return zero, fmt.Errorf("marshal request: %w", err)
+	}
+
+	endpoint := fmt.Sprintf("%s/api/trpc/%s", c.baseURL, procedure)
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return zero, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	raw, err := c.doRequest(req)
+	if err != nil {
+		return zero, err
+	}
+	return parseResponse[T](raw)
 }
 
 // --- typed procedures ---
 
 // GetOverview calls dashboard.getOverview.
 func (c *Client) GetOverview() (*model.Overview, error) {
-	out, err := call[model.Overview](c, "dashboard.getOverview", struct{}{})
+	out, err := query[model.Overview](c, "dashboard.getOverview", struct{}{})
 	if err != nil {
 		return nil, err
 	}
@@ -109,20 +151,16 @@ func (c *Client) GetOverview() (*model.Overview, error) {
 
 // GetChartData calls dashboard.getChartData.
 func (c *Client) GetChartData() (*model.ChartData, error) {
-	out, err := call[model.ChartData](c, "dashboard.getChartData", struct{}{})
+	out, err := query[model.ChartData](c, "dashboard.getChartData", struct{}{})
 	if err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-type activeMaterialsInput struct {
-	// no input needed — server returns active materials for the session user
-}
-
 // GetActiveMaterials calls dashboard.getActiveMaterials.
 func (c *Client) GetActiveMaterials() ([]model.ActiveMaterial, error) {
-	out, err := call[[]model.ActiveMaterial](c, "dashboard.getActiveMaterials", activeMaterialsInput{})
+	out, err := query[[]model.ActiveMaterial](c, "dashboard.getActiveMaterials", struct{}{})
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +169,7 @@ func (c *Client) GetActiveMaterials() ([]model.ActiveMaterial, error) {
 
 // GetAllSkills calls skill.getAll (no filters — returns all non-archived skills).
 func (c *Client) GetAllSkills() ([]model.Skill, error) {
-	out, err := call[[]model.Skill](c, "skill.getAll", struct{}{})
+	out, err := query[[]model.Skill](c, "skill.getAll", struct{}{})
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +178,7 @@ func (c *Client) GetAllSkills() ([]model.Skill, error) {
 
 // GetAllCategories calls category.getAll.
 func (c *Client) GetAllCategories() ([]model.Category, error) {
-	out, err := call[[]model.Category](c, "category.getAll", struct{}{})
+	out, err := query[[]model.Category](c, "category.getAll", struct{}{})
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +196,7 @@ func (c *Client) GetAllMaterials(activeOnly bool) ([]model.Material, error) {
 		t := true
 		input.IsActive = &t
 	}
-	out, err := call[[]model.Material](c, "material.getAll", input)
+	out, err := query[[]model.Material](c, "material.getAll", input)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +209,7 @@ type getProgressInput struct {
 
 // GetAllProgress calls progress.getAll.
 func (c *Client) GetAllProgress(materialID *string) ([]model.ProgressLog, error) {
-	out, err := call[[]model.ProgressLog](c, "progress.getAll", getProgressInput{MaterialID: materialID})
+	out, err := query[[]model.ProgressLog](c, "progress.getAll", getProgressInput{MaterialID: materialID})
 	if err != nil {
 		return nil, err
 	}
@@ -185,9 +223,9 @@ type logUnitsInput struct {
 	Notes      *string `json:"notes,omitempty"`
 }
 
-// LogUnits calls progress.logUnits.
+// LogUnits calls progress.logUnits (mutation).
 func (c *Client) LogUnits(materialID, date string, units float64, notes *string) error {
-	_, err := call[struct{}](c, "progress.logUnits", logUnitsInput{
+	_, err := mutation[struct{}](c, "progress.logUnits", logUnitsInput{
 		MaterialID: materialID,
 		Date:       date,
 		Units:      units,
