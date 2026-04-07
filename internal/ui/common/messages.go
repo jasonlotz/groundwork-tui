@@ -1,0 +1,10 @@
+package common
+
+// GoBackMsg is sent by any screen to signal the root model to pop back.
+type GoBackMsg struct{}
+
+// ToastMsg carries a transient notification message to be shown by the root.
+type ToastMsg struct {
+	Text    string
+	IsError bool
+}

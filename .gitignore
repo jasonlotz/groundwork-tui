@@ -1,0 +1,9 @@
+# Binaries
+groundwork-tui
+
+# Config (never commit keys)
+config.toml
+*.toml
+
+# Go
+*.test
