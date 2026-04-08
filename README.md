@@ -290,7 +290,7 @@ type Model struct {
     dashboard      dashboard.Model
     materialsList  materials.Model
     // ... one field per screen ...
-    categoryDetail *materialdetail.Model  // pointer = created on demand
+    categoryDetail *categorydetail.Model  // pointer = created on demand
     toast          string
     width, height  int
 }
@@ -349,9 +349,9 @@ case tea.WindowSizeMsg:
 
 Without this, any screen that was not active at startup would have `height == 0` and compute `visibleItems = 3` regardless of the actual terminal height.
 
-**Toast overlay**
+**Tab bar and toast**
 
-After `View()` renders the active screen to a string, if `m.toast != ""` it appends the toast below using `lipgloss.JoinVertical`. This is a clean way to layer UI: the active screen renders itself normally, and the root wraps it.
+`app.View()` always composes the final output in three layers using `lipgloss.JoinVertical`: the tab bar (from `common.RenderTabBar`), the active screen's content, and — when `m.toast != ""` — a toast line below. The toast uses `common.SuccessStyle` for normal messages and `common.DangerStyle` for errors (`m.toastIsErr`). This layering means no screen needs to know about the tab bar or toasts; they render only their own content.
 
 ### A typical screen: `internal/ui/dashboard/dashboard.go`
 
@@ -438,13 +438,15 @@ case "enter":
 
 ### The `common` package: `internal/ui/common/`
 
-Shared infrastructure used by every screen. Five files:
+Shared infrastructure used by every screen. Seven files:
 
-**`messages.go`** — Three cross-cutting message types. `GoBackMsg` tells the root to pop the stack. `ToastMsg` tells the root to show a transient notification. `ErrMsg` wraps a load error so it can travel as a `tea.Msg`.
+**`messages.go`** — Cross-cutting message types. `GoBackMsg` tells the root to pop the stack. `ToastMsg` tells the root to show a transient notification. `ErrMsg` wraps a load error so it can travel as a `tea.Msg`. Four **domain event** types (`MaterialChangedMsg`, `ProgressLoggedMsg`, `SkillChangedMsg`, `CategoryChangedMsg`) are broadcast globally by any screen that performs a mutation — `app.Update()` fans them out to every persistent screen so background screens stay in sync without polling.
 
 **`styles.go`** — All Lip Gloss styles declared as package-level variables, acting as a stylesheet. No screen creates styles inline (with minor exceptions for dynamically computed colors). A screen simply calls `common.MutedStyle.Render(text)`. This file also contains helper functions like `RenderTitle`, `RenderKPICards`, `RenderBar`, and `RenderWeeklyBar`. `PopupStyle` (rounded violet border, 60-char wide) is the shared style applied by all popup `View()` methods.
 
-**`crudforms.go`** — Reusable Huh-based popup models for category and skill CRUD: `CategoryForm`, `SkillForm`, and `ConfirmForm`. Each satisfies `tea.Model` and wraps its content in `PopupStyle`. See the Forms section above for details.
+**`tabs.go`** — `RenderTabBar(activeTab, width)` renders the tab bar shown at the top of every screen. The root `app.View()` prepends it above the active screen's content using `lipgloss.JoinVertical`.
+
+**`crudforms.go`** — Reusable Huh-based popup models for all CRUD operations: `CategoryForm`, `SkillForm`, `ConfirmForm`, and `MaterialForm`. Each satisfies `tea.Model` and wraps its content in `PopupStyle`. See the Forms section below for details.
 
 **`tailwind.go`** — The web app stores category and skill colors as Tailwind CSS class strings like `"bg-violet-300 text-violet-900 dark:bg-violet-800"`. This file maps those strings to terminal hex colors. `extractBgClass` pulls the first `bg-*` token from a multi-class string. `TailwindToLipgloss` returns `(lipgloss.Color, bool)` — the `bool` follows Go's idiomatic "ok" pattern so callers can distinguish "no color" from "color happens to match the fallback". `ColorDot` and `ColoredName` are the two helpers screens actually call.
 
@@ -490,10 +492,11 @@ if m.overlay != nil {
 
 Each form's `View()` wraps its content in `common.PopupStyle` (rounded violet border, fixed 60-char width), so callers don't need to apply any additional styling.
 
-`crudforms.go` in the `common` package provides three reusable popup models built on the same pattern:
+`crudforms.go` in the `common` package provides four reusable popup models built on the same pattern:
 
 - **`CategoryForm`** — name + color picker for create/edit (`NewCategoryCreateForm` / `NewCategoryEditForm`). Sends `CategoryFormDoneMsg` when complete.
-- **`SkillForm`** — same structure for skills, also carries the parent `categoryID`. Sends `SkillFormDoneMsg`.
+- **`SkillForm`** — same structure for skills, also carries the parent `categoryID`. Supports an optional category picker (`NewSkillCreateFormWithCategories`). Sends `SkillFormDoneMsg`.
+- **`MaterialForm`** — create/edit form for materials (name, skill, type, unit type, total units, URL, dates). Sends `MaterialFormDoneMsg`.
 - **`ConfirmForm`** — a small `huh.NewConfirm` yes/no dialog used for archive and delete confirmations. Carries a `tag` string (e.g. `"archive"`, `"delete"`) so the screen knows which action to execute. Sends `ConfirmDoneMsg`.
 
 The setup wizard in `internal/ui/setup/setup.go` uses the exact same Huh pattern, with `EchoModePassword` on the API key field and a `huh.NewConfirm` for the save prompt.
