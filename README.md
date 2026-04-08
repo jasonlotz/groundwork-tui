@@ -32,12 +32,12 @@ Download the Windows installer (`.msi`) from [go.dev/dl](https://go.dev/dl/) and
 go version
 ```
 
-> **Windows terminal note:** Run groundwork-tui in [Windows Terminal](https://aka.ms/terminal) or any modern terminal that supports ANSI color codes. The classic `cmd.exe` prompt will not render colors correctly. PowerShell in Windows Terminal works well.
+> **Windows terminal note:** Run groundwork in [Windows Terminal](https://aka.ms/terminal) or any modern terminal that supports ANSI color codes. The classic `cmd.exe` prompt will not render colors correctly. PowerShell in Windows Terminal works well.
 
-## Install groundwork-tui
+## Install groundwork
 
 ```bash
-go install github.com/jasonlotz/groundwork-tui/cmd/groundwork-tui@latest
+go install github.com/jasonlotz/groundwork-tui/cmd/groundwork@latest
 ```
 
 This downloads and compiles the binary into your Go bin directory (`~/go/bin` on macOS/Linux, `%USERPROFILE%\go\bin` on Windows). Make sure that directory is in your `PATH` — the Go installer adds it automatically on Windows; on macOS you may need to add it to your shell profile:
@@ -52,7 +52,7 @@ Or build from source:
 ```bash
 git clone https://github.com/jasonlotz/groundwork-tui
 cd groundwork-tui
-go build -o groundwork-tui ./cmd/groundwork-tui
+go build -o groundwork ./cmd/groundwork
 ```
 
 ## First run
@@ -60,7 +60,7 @@ go build -o groundwork-tui ./cmd/groundwork-tui
 Run the binary:
 
 ```bash
-groundwork-tui
+groundwork
 ```
 
 On first launch you'll be prompted for:
@@ -200,7 +200,7 @@ A `tea.Cmd` is just a `func() tea.Msg` — a function that Bubble Tea will run i
 
 That's it. The whole framework flows from this pattern. Once you see it in one place, you see it everywhere.
 
-### Start here: `cmd/groundwork-tui/main.go`
+### Start here: `cmd/groundwork/main.go`
 
 The entry point is deliberately thin. It handles two cases:
 
@@ -534,7 +534,7 @@ The same overlay pattern applies to category/skill CRUD. For example, pressing `
 ### Package dependency map
 
 ```
-cmd/groundwork-tui
+cmd/groundwork
     └── internal/ui/app          ← root model; imports all screens
             ├── internal/ui/dashboard
             ├── internal/ui/materials

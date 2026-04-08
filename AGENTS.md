@@ -26,10 +26,10 @@ go build ./...
 go vet ./...
 
 # Run locally
-go run ./cmd/groundwork-tui
+go run ./cmd/groundwork
 
 # Install binary
-go install github.com/jasonlotz/groundwork-tui/cmd/groundwork-tui@latest
+go install github.com/jasonlotz/groundwork-tui/cmd/groundwork@latest
 ```
 
 ---
@@ -48,7 +48,7 @@ go install github.com/jasonlotz/groundwork-tui/cmd/groundwork-tui@latest
 ## Project Structure
 
 ```
-cmd/groundwork-tui/
+cmd/groundwork/
   main.go                — entry point: setup wizard or main app
 
 internal/

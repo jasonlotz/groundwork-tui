@@ -1,5 +1,6 @@
 # Binaries
 groundwork-tui
+/groundwork
 
 # Config (never commit keys)
 config.toml
