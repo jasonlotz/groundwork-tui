@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
@@ -183,7 +184,9 @@ func (m Model) View() string {
 		metaLines = append(metaLines, fmt.Sprintf("  Completed: %s", common.MutedStyle.Render(mat.CompletedDate.Value)))
 	}
 	if mat.URL != nil && *mat.URL != "" {
-		metaLines = append(metaLines, fmt.Sprintf("  URL: %s", common.MutedStyle.Render(common.Truncate(*mat.URL, 50))))
+		label := common.Truncate(*mat.URL, 50)
+		link := termenv.Hyperlink(*mat.URL, label)
+		metaLines = append(metaLines, fmt.Sprintf("  URL: %s", common.MutedStyle.Render(link)))
 	}
 	for _, line := range metaLines {
 		b.WriteString(line + "\n")
