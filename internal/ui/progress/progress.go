@@ -17,6 +17,8 @@ import (
 
 type logsLoadedMsg struct{ data []model.ProgressLog }
 
+type deleteResultMsg struct{ toast string }
+
 // Model is the Bubble Tea model for the progress history screen.
 type Model struct {
 	client  *api.Client
@@ -28,6 +30,7 @@ type Model struct {
 	height  int
 	spinner spinner.Model
 	keys    common.SimpleKeyMap
+	overlay tea.Model
 }
 
 func New(client *api.Client) Model {
@@ -37,6 +40,7 @@ func New(client *api.Client) Model {
 		spinner: common.NewSpinner(),
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
+			common.KB("D", "delete entry"),
 			common.KB("r", "refresh"),
 			common.KB("esc", "back"),
 		}},
@@ -53,11 +57,42 @@ func load(c *api.Client) tea.Cmd {
 	}
 }
 
+func deleteEntry(c *api.Client, id string) tea.Cmd {
+	return func() tea.Msg {
+		if err := c.DeleteProgressEntry(id); err != nil {
+			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
+		}
+		return deleteResultMsg{toast: "Entry deleted"}
+	}
+}
+
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(load(m.client), m.spinner.Tick)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// ── overlay routing ──────────────────────────────────────────────────────
+	if m.overlay != nil {
+		if k, ok := msg.(tea.KeyMsg); ok && k.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+
+		updated, cmd := m.overlay.Update(msg)
+		m.overlay = updated
+
+		if done, ok := msg.(common.ConfirmDoneMsg); ok {
+			m.overlay = nil
+			if done.Confirmed && done.Tag == "delete" && m.cursor < len(m.logs) {
+				id := m.logs[m.cursor].ID
+				return m, deleteEntry(m.client, id)
+			}
+			return m, cmd
+		}
+
+		return m, cmd
+	}
+
+	// ── normal update ────────────────────────────────────────────────────────
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -66,6 +101,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logsLoadedMsg:
 		m.logs = msg.data
 		m.loading = false
+		// clamp cursor after reload
+		if m.cursor >= len(m.logs) && m.cursor > 0 {
+			m.cursor = len(m.logs) - 1
+		}
+
+	case deleteResultMsg:
+		t := msg.toast
+		return m, tea.Batch(
+			func() tea.Msg { return common.ToastMsg{Text: t} },
+			func() tea.Msg { return common.ProgressLoggedMsg{} },
+			load(m.client),
+		)
 
 	case common.ErrMsg:
 		m.err = msg.Err
@@ -94,12 +141,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			m.err = nil
 			return m, load(m.client)
+		case "D":
+			if len(m.logs) > 0 {
+				entry := m.logs[m.cursor]
+				desc := fmt.Sprintf("Delete %.4g %s logged on %s for \"%s\"?",
+					entry.Units,
+					entry.Material.UnitType.Label(),
+					entry.Date.Value,
+					common.Truncate(entry.MaterialName(), 30),
+				)
+				f := common.NewConfirmForm("Delete entry?", desc, "delete")
+				m.overlay = f
+				return m, f.Init()
+			}
 		}
 	}
 	return m, nil
 }
 
 func (m Model) View() string {
+	if m.overlay != nil {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())
+	}
+
 	if m.loading {
 		return common.SpinnerView(m.spinner)
 	}

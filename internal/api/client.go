@@ -298,6 +298,16 @@ type logUnitsInput struct {
 	Notes      *string `json:"notes,omitempty"`
 }
 
+type deleteProgressEntryInput struct {
+	ID string `json:"id"`
+}
+
+// DeleteProgressEntry calls progress.deleteEntry (mutation).
+func (c *Client) DeleteProgressEntry(id string) error {
+	_, err := mutation[struct{}](c, "progress.deleteEntry", deleteProgressEntryInput{ID: id})
+	return err
+}
+
 // LogUnits calls progress.logUnits (mutation).
 func (c *Client) LogUnits(materialID, date string, units float64, notes *string) error {
 	input := logUnitsInput{
