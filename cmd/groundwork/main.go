@@ -26,7 +26,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error during setup:", err)
 			os.Exit(1)
 		}
-		sm, ok := m.(setup.Model)
+		sm, ok := m.(*setup.Model)
 		if !ok || sm.Cancelled() {
 			fmt.Println("Setup cancelled. Run groundwork-tui again to configure.")
 			os.Exit(0)
