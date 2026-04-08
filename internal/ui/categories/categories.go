@@ -22,16 +22,18 @@ type OpenCategoryMsg struct{ CategoryID string }
 
 // Model is the Bubble Tea model for the categories list screen.
 type Model struct {
-	client     *api.Client
-	categories []model.Category
-	cursor     int
-	loading    bool
-	err        error
-	width      int
-	height     int
-	spinner    spinner.Model
-	keys       common.SimpleKeyMap
-	overlay    tea.Model
+	client       *api.Client
+	categories   []model.Category // all categories from API
+	filtered     []model.Category // categories after archive filter
+	showArchived bool
+	cursor       int
+	loading      bool
+	err          error
+	width        int
+	height       int
+	spinner      spinner.Model
+	keys         common.SimpleKeyMap
+	overlay      tea.Model
 }
 
 func New(client *api.Client) Model {
@@ -39,11 +41,11 @@ func New(client *api.Client) Model {
 		client:  client,
 		loading: true,
 		spinner: common.NewSpinner(),
-		keys:    buildKeys(false),
+		keys:    buildKeys(false, false),
 	}
 }
 
-func buildKeys(hasArchived bool) common.SimpleKeyMap {
+func buildKeys(hasArchived bool, showArchived bool) common.SimpleKeyMap {
 	bindings := []common.Binding{
 		common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 		common.KB("enter", "open"),
@@ -55,8 +57,13 @@ func buildKeys(hasArchived bool) common.SimpleKeyMap {
 	} else {
 		bindings = append(bindings, common.KB("A", "archive"))
 	}
+	archivedLabel := "show archived"
+	if showArchived {
+		archivedLabel = "hide archived"
+	}
 	bindings = append(bindings,
 		common.KB("D", "delete (archived)"),
+		common.KB("z", archivedLabel),
 		common.KB("r", "refresh"),
 		common.KB("esc", "back"),
 	)
@@ -100,7 +107,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case common.ConfirmDoneMsg:
 			m.overlay = nil
 			if msg.Confirmed {
-				return m, submitConfirm(m.client, m.categories, m.cursor, msg.Tag)
+				return m, submitConfirm(m.client, m.filtered, m.cursor, msg.Tag)
 			}
 			return m, cmd
 
@@ -120,10 +127,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case categoriesLoadedMsg:
 		m.categories = msg.data
 		m.loading = false
-		if m.cursor >= len(m.categories) && m.cursor > 0 {
-			m.cursor = len(m.categories) - 1
+		m.applyFilter()
+		if m.cursor >= len(m.filtered) && m.cursor > 0 {
+			m.cursor = len(m.filtered) - 1
 		}
-		m.keys = buildKeys(m.selectedIsArchived())
+		m.keys = buildKeys(m.selectedIsArchived(), m.showArchived)
 
 	case common.CategoryChangedMsg:
 		return m, load(m.client)
@@ -150,38 +158,45 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "j", "down":
-			if m.cursor < len(m.categories)-1 {
+			if m.cursor < len(m.filtered)-1 {
 				m.cursor++
-				m.keys = buildKeys(m.selectedIsArchived())
+				m.keys = buildKeys(m.selectedIsArchived(), m.showArchived)
 			}
 		case "k", "up":
 			if m.cursor > 0 {
 				m.cursor--
-				m.keys = buildKeys(m.selectedIsArchived())
+				m.keys = buildKeys(m.selectedIsArchived(), m.showArchived)
 			}
 		case "enter":
-			if len(m.categories) > 0 {
-				id := m.categories[m.cursor].ID
+			if len(m.filtered) > 0 {
+				id := m.filtered[m.cursor].ID
 				return m, func() tea.Msg { return OpenCategoryMsg{CategoryID: id} }
 			}
 		case "r":
 			m.loading = true
 			m.err = nil
 			return m, load(m.client)
+		case "z":
+			m.showArchived = !m.showArchived
+			m.applyFilter()
+			if m.cursor >= len(m.filtered) && len(m.filtered) > 0 {
+				m.cursor = len(m.filtered) - 1
+			}
+			m.keys = buildKeys(m.selectedIsArchived(), m.showArchived)
 		case "n":
 			f := common.NewCategoryCreateForm()
 			m.overlay = f
 			return m, f.Init()
 		case "e":
-			if len(m.categories) > 0 {
-				cat := m.categories[m.cursor]
+			if len(m.filtered) > 0 {
+				cat := m.filtered[m.cursor]
 				f := common.NewCategoryEditForm(cat.ID, cat.Name, cat.Color)
 				m.overlay = f
 				return m, f.Init()
 			}
 		case "A":
-			if len(m.categories) > 0 {
-				cat := m.categories[m.cursor]
+			if len(m.filtered) > 0 {
+				cat := m.filtered[m.cursor]
 				var title, desc, tag string
 				if cat.IsArchived {
 					title = "Unarchive category?"
@@ -197,8 +212,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, f.Init()
 			}
 		case "D":
-			if len(m.categories) > 0 {
-				cat := m.categories[m.cursor]
+			if len(m.filtered) > 0 {
+				cat := m.filtered[m.cursor]
 				if !cat.IsArchived {
 					return m, func() tea.Msg {
 						return common.ToastMsg{Text: "Archive the category first before deleting.", IsError: true}
@@ -219,10 +234,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // selectedIsArchived returns true if the currently highlighted category is archived.
 func (m Model) selectedIsArchived() bool {
-	if len(m.categories) == 0 || m.cursor >= len(m.categories) {
+	if len(m.filtered) == 0 || m.cursor >= len(m.filtered) {
 		return false
 	}
-	return m.categories[m.cursor].IsArchived
+	return m.filtered[m.cursor].IsArchived
+}
+
+// applyFilter rebuilds m.filtered from m.categories based on showArchived.
+func (m *Model) applyFilter() {
+	if m.showArchived {
+		m.filtered = m.categories
+		return
+	}
+	filtered := m.categories[:0:0]
+	for _, c := range m.categories {
+		if !c.IsArchived {
+			filtered = append(filtered, c)
+		}
+	}
+	m.filtered = filtered
 }
 
 // categoryMutatedMsg is an internal message carrying the result of a mutation.
@@ -289,18 +319,26 @@ func (m Model) View() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(common.RenderTitle("Categories", m.width))
+	filterTag := ""
+	if m.showArchived {
+		filterTag = "  " + common.MutedStyle.Render("[showing archived]")
+	}
+	b.WriteString(common.RenderTitle("Categories", m.width) + filterTag)
 	b.WriteString("\n")
 
-	if len(m.categories) == 0 {
-		b.WriteString(common.MutedStyle.Render("  No categories found.\n"))
+	if len(m.filtered) == 0 {
+		if m.showArchived {
+			b.WriteString(common.MutedStyle.Render("  No categories found.\n"))
+		} else {
+			b.WriteString(common.MutedStyle.Render("  No categories found.\n"))
+		}
 	} else {
 		// RenderTitle=3 + blank=1 + table-header=1 + table-sep=1 + blank=1 + help=2 = 9 overhead; tab bar=3 → 12 (data rows only)
 		visibleHeight := m.height - 12
 		if visibleHeight < 3 {
 			visibleHeight = 3
 		}
-		start, end := common.VisibleWindow(m.cursor, len(m.categories), visibleHeight)
+		start, end := common.VisibleWindow(m.cursor, len(m.filtered), visibleHeight)
 
 		rows := make([][]string, end-start)
 		for i := start; i < end; i++ {
@@ -327,9 +365,9 @@ func (m Model) View() string {
 		b.WriteString(t.Render())
 		b.WriteString("\n")
 
-		if len(m.categories) > visibleHeight {
+		if len(m.filtered) > visibleHeight {
 			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
-				"  %d–%d of %d\n", start+1, end, len(m.categories),
+				"  %d–%d of %d\n", start+1, end, len(m.filtered),
 			)))
 		}
 	}
@@ -340,7 +378,7 @@ func (m Model) View() string {
 }
 
 func (m Model) buildRow(i int) []string {
-	cat := m.categories[i]
+	cat := m.filtered[i]
 
 	cursor := " "
 	if i == m.cursor {
