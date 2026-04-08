@@ -86,6 +86,7 @@ To reconfigure, delete the config file and relaunch.
 | `s` | Skills tab     |
 | `m` | Materials tab  |
 | `p` | Progress tab   |
+| `t` | Theme tab      |
 | `q` | Quit           |
 
 ### Dashboard
@@ -462,7 +463,7 @@ lf.form = huh.NewForm(
         huh.NewInput().Title("Units").Value(&lf.unitsStr),
         huh.NewText().Title("Notes").Value(&lf.notes),
     ),
-).WithTheme(huh.ThemeDracula())
+).WithTheme(huh.ThemeCatpuccin())
 ```
 
 When the form completes (`lf.form.State == huh.StateCompleted`), `submit()` is called — a `tea.Cmd` that reads the bound values, calls `client.LogUnits`, and returns either a `ToastMsg` on error or a `LogDoneMsg{Cancelled: false}` on success.

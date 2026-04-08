@@ -225,7 +225,7 @@ func buildMaterialForm(st *materialFormState, skills []model.Skill, types []mode
 				Title("Notes (optional)").
 				Value(&st.notes),
 		),
-	).WithTheme(huh.ThemeDracula())
+	).WithTheme(ActiveTheme)
 }
 
 // validateOptionalDate accepts empty string or a valid YYYY-MM-DD.
@@ -298,11 +298,10 @@ func (mf MaterialForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	form, cmd := mf.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		mf.form = f
-	}
-	if mf.form.State == huh.StateCompleted {
+	var cmd tea.Cmd
+	var done bool
+	mf.form, cmd, done = updateHuhForm(mf.form, msg)
+	if done {
 		return mf, func() tea.Msg { return MaterialFormDoneMsg{Cancelled: false} }
 	}
 	return mf, cmd

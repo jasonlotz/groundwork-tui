@@ -11,7 +11,9 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/config"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/app"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/setup"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/theme"
 )
 
 func main() {
@@ -41,7 +43,13 @@ func main() {
 
 	client := api.New(cfg.BaseURL, cfg.APIKey)
 
-	p := tea.NewProgram(app.New(client), tea.WithAltScreen())
+	// Apply saved theme before launching.
+	if cfg.Theme != "" {
+		theme.SetActive(cfg.Theme)
+		common.ApplyTheme()
+	}
+
+	p := tea.NewProgram(app.New(client, cfg), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

@@ -28,3 +28,7 @@ type SkillChangedMsg struct{}
 
 // CategoryChangedMsg is broadcast after any category is created, updated, archived, unarchived, or deleted.
 type CategoryChangedMsg struct{}
+
+// ThemeChangedMsg is sent by the settings screen after the user picks a new theme.
+// ThemeName is the name of the newly selected theme.
+type ThemeChangedMsg struct{ ThemeName string }

@@ -6,12 +6,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
+	"github.com/jasonlotz/groundwork-tui/internal/config"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/categories"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/dashboard"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/materials"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/settings"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/skills"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/theme"
 )
 
 type screen int
@@ -22,6 +25,7 @@ const (
 	screenSkills
 	screenMaterials
 	screenProgress
+	screenSettings
 	screenCategoryDetail
 	screenSkillDetail
 	screenMaterialDetail
@@ -39,6 +43,7 @@ type screenState struct {
 // Model is the root application model.
 type Model struct {
 	client         *api.Client
+	cfg            *config.Config
 	current        screen
 	activeTab      screen // top-level tab; does not change when pushing detail screens
 	navStack       []screenState
@@ -47,6 +52,7 @@ type Model struct {
 	skillsList     skills.Model
 	progressList   progress.Model
 	categoriesList categories.Model
+	settingsScreen settings.Model
 	categoryDetail *categories.DetailModel
 	skillDetail    *skills.DetailModel
 	materialDetail *materials.DetailModel
@@ -56,9 +62,10 @@ type Model struct {
 	height         int
 }
 
-func New(client *api.Client) Model {
+func New(client *api.Client, cfg *config.Config) Model {
 	return Model{
 		client:         client,
+		cfg:            cfg,
 		current:        screenDashboard,
 		activeTab:      screenDashboard,
 		dashboard:      dashboard.New(client),
@@ -66,6 +73,7 @@ func New(client *api.Client) Model {
 		skillsList:     skills.New(client),
 		progressList:   progress.New(client),
 		categoriesList: categories.New(client),
+		settingsScreen: settings.New(),
 	}
 }
 
@@ -153,6 +161,9 @@ func (m *Model) switchTab(s screen) (tea.Model, tea.Cmd) {
 		return m, m.progressList.Init()
 	case screenCategories:
 		return m, m.categoriesList.Init()
+	case screenSettings:
+		m.settingsScreen = settings.New()
+		return m, m.settingsScreen.Init()
 	}
 	return m, nil
 }
@@ -179,10 +190,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if updated, _ := m.categoriesList.Update(msg); updated != nil {
 			m.categoriesList = updated.(categories.Model)
 		}
+		if updated, _ := m.settingsScreen.Update(msg); updated != nil {
+			m.settingsScreen = updated.(settings.Model)
+		}
 
 	case common.ToastMsg:
 		m.toast = msg.Text
 		m.toastIsErr = msg.IsError
+		return m, nil
+
+	case common.ThemeChangedMsg:
+		if theme.SetActive(msg.ThemeName) {
+			common.ApplyTheme()
+			// Persist to config.
+			if m.cfg != nil {
+				m.cfg.Theme = msg.ThemeName
+				_ = config.Save(m.cfg)
+			}
+			// Refresh the settings cursor to reflect new active theme.
+			m.settingsScreen = settings.New()
+			m.toast = "Theme changed to " + msg.ThemeName
+		}
 		return m, nil
 
 	case common.GoBackMsg:
@@ -275,6 +303,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.switchTab(screenProgress)
 		case "c":
 			return m.switchTab(screenCategories)
+		case "t":
+			return m.switchTab(screenSettings)
 		}
 	}
 
@@ -308,6 +338,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenCategories:
 		updated, cmd := m.categoriesList.Update(msg)
 		m.categoriesList = updated.(categories.Model)
+		return m, cmd
+
+	case screenSettings:
+		updated, cmd := m.settingsScreen.Update(msg)
+		m.settingsScreen = updated.(settings.Model)
 		return m, cmd
 
 	case screenCategoryDetail:
@@ -369,6 +404,8 @@ func (m Model) View() string {
 		content = m.progressList.View()
 	case screenCategories:
 		content = m.categoriesList.View()
+	case screenSettings:
+		content = m.settingsScreen.View()
 	case screenCategoryDetail:
 		if m.categoryDetail != nil {
 			content = m.categoryDetail.View()

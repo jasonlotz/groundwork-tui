@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/huh"
 
 	"github.com/jasonlotz/groundwork-tui/internal/config"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/forms"
 )
 
 // Model is the Bubble Tea model for the setup wizard.
@@ -52,7 +53,7 @@ func New(cfg *config.Config) Model {
 				Negative("Cancel").
 				Value(&confirmed),
 		),
-	).WithTheme(huh.ThemeDracula())
+	).WithTheme(forms.ActiveTheme)
 
 	return Model{
 		form:      form,

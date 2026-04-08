@@ -75,9 +75,13 @@ internal/
       material_form.go   — MaterialForm, MaterialFormDoneMsg, MaterialFormResult, NewMaterialCreateForm, NewMaterialEditForm
       confirm_form.go    — ConfirmForm, ConfirmDoneMsg, NewConfirmForm
       log_form.go        — LogForm, LogDoneMsg, NewLogForm
-      colors.go          — shared colorOptions slice used by CategoryForm and SkillForm
+      colors.go          — shared colorOptions + ActiveTheme var + updateHuhForm helper
     setup/
       setup.go           — first-run wizard (Huh form for base URL + API key)
+    theme/
+      theme.go           — Theme struct, All slice (11 themes), Active pointer, SetActive()
+    settings/
+      settings.go        — theme-picker screen (press t); emits ThemeChangedMsg on selection
     dashboard/           — home screen: KPI cards + active materials list
     materials/
       materials.go       — materials list + create/edit/delete/log overlays
@@ -129,7 +133,7 @@ Recount from the `View()` source every time you change layout; do not guess.
 
 Screens store an `overlay tea.Model` field. When non-nil, `Update` routes all messages through the overlay and `View` renders it centered via `lipgloss.Place`. Done messages (`forms.LogDoneMsg`, `forms.CategoryFormDoneMsg`, `forms.ConfirmDoneMsg`, etc.) clear the overlay and trigger a data reload. All form and done-message types live in `internal/ui/forms/` — never in `common`.
 
-Every screen that can have an overlay must implement `HasOverlay() bool { return m.overlay != nil }`. The root `app.go` collects these via `inputActive()` to suppress global tab-switch hotkeys (`d/c/s/m/p`) while a form is open. If you add a new screen with an overlay, add its `HasOverlay()` check to `inputActive()` in `app.go`.
+Every screen that can have an overlay must implement `HasOverlay() bool { return m.overlay != nil }`. The root `app.go` collects these via `inputActive()` to suppress global tab-switch hotkeys (`d/c/s/m/p/t`) while a form is open. If you add a new screen with an overlay, add its `HasOverlay()` check to `inputActive()` in `app.go`.
 
 ### Styles
 

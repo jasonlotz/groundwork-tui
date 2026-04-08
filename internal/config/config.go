@@ -20,6 +20,7 @@ const (
 type Config struct {
 	BaseURL string `toml:"base_url"`
 	APIKey  string `toml:"api_key"`
+	Theme   string `toml:"theme,omitempty"`
 }
 
 // DefaultBaseURL is the production Groundwork instance.

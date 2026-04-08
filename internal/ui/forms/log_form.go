@@ -64,7 +64,7 @@ func NewLogForm(client *api.Client, materialID, materialName string) LogForm {
 				Description("Optional").
 				Value(&st.notes),
 		),
-	).WithTheme(huh.ThemeDracula())
+	).WithTheme(ActiveTheme)
 
 	return lf
 }
@@ -81,15 +81,12 @@ func (lf LogForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	form, cmd := lf.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		lf.form = f
-	}
-
-	if lf.form.State == huh.StateCompleted {
+	var cmd tea.Cmd
+	var done bool
+	lf.form, cmd, done = updateHuhForm(lf.form, msg)
+	if done {
 		return lf, lf.submit()
 	}
-
 	return lf, cmd
 }
 

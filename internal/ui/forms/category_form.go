@@ -70,7 +70,7 @@ func buildCategoryForm(st *categoryFormState, title string) *huh.Form {
 				Options(append([]huh.Option[string]{huh.NewOption("None", "")}, colorOptions...)...).
 				Value(&st.color),
 		),
-	).WithTheme(huh.ThemeDracula())
+	).WithTheme(ActiveTheme)
 }
 
 // IsEdit reports whether this form is editing an existing category.
@@ -101,11 +101,10 @@ func (cf CategoryForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	form, cmd := cf.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		cf.form = f
-	}
-	if cf.form.State == huh.StateCompleted {
+	var cmd tea.Cmd
+	var done bool
+	cf.form, cmd, done = updateHuhForm(cf.form, msg)
+	if done {
 		return cf, func() tea.Msg { return CategoryFormDoneMsg{Cancelled: false} }
 	}
 	return cf, cmd

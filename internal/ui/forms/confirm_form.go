@@ -34,7 +34,7 @@ func NewConfirmForm(title, description, tag string) ConfirmForm {
 				Negative("No").
 				Value(cf.confirmed),
 		),
-	).WithTheme(huh.ThemeDracula())
+	).WithTheme(ActiveTheme)
 	return cf
 }
 
@@ -48,11 +48,10 @@ func (cf ConfirmForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	form, cmd := cf.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		cf.form = f
-	}
-	if cf.form.State == huh.StateCompleted {
+	var cmd tea.Cmd
+	var done bool
+	cf.form, cmd, done = updateHuhForm(cf.form, msg)
+	if done {
 		tag := cf.tag
 		confirmed := *cf.confirmed
 		return cf, func() tea.Msg { return ConfirmDoneMsg{Confirmed: confirmed, Tag: tag} }

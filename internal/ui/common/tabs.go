@@ -13,6 +13,7 @@ const (
 	TabSkills     = 2
 	TabMaterials  = 3
 	TabProgress   = 4
+	TabSettings   = 5
 )
 
 // tabDef describes one tab entry.
@@ -27,6 +28,7 @@ var tabDefs = []tabDef{
 	{"s", "kills"},
 	{"m", "aterials"},
 	{"p", "rogress"},
+	{"t", "heme"},
 }
 
 var (
@@ -69,6 +71,40 @@ var (
 
 	tabRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
 )
+
+// rebuildTabStyles recreates all tab bar styles from the current palette.
+// Called by ApplyTheme() after a theme switch.
+func rebuildTabStyles() {
+	tabActiveStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(ColorHighlight).
+		Border(lipgloss.Border{
+			Top:         "─",
+			Left:        "│",
+			Right:       "│",
+			TopLeft:     "╭",
+			TopRight:    "╮",
+			BottomLeft:  "╯",
+			BottomRight: "╰",
+		}).
+		BorderTop(true).
+		BorderLeft(true).
+		BorderRight(true).
+		BorderBottom(false).
+		BorderForeground(ColorHighlight).
+		PaddingLeft(1).
+		PaddingRight(1)
+	tabInactiveStyle = lipgloss.NewStyle().
+		Foreground(ColorMuted).
+		PaddingLeft(1).
+		PaddingRight(1).
+		MarginTop(1)
+	tabKeyActiveStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Underline(true)
+	tabKeyInactiveStyle = lipgloss.NewStyle().Foreground(ColorSubtle).Underline(true)
+	tabSuffixActiveStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
+	tabSuffixInactiveStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	tabRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
+}
 
 // RenderTabBar renders a tab bar with a rule beneath (3 lines total:
 // top border row, label row, rule row — but active tab has no bottom border

@@ -9,19 +9,70 @@ import (
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/jasonlotz/groundwork-tui/internal/ui/theme"
 )
 
-// Palette — a small set of consistent colors.
+// Palette — re-exported shorthands pointing to the active theme's colors.
+// Change the theme in internal/ui/theme/theme.go to restyle the whole app.
 var (
-	ColorPrimary   = lipgloss.Color("#7C3AED") // violet-600
-	ColorMuted     = lipgloss.Color("#6B7280") // gray-500
-	ColorSuccess   = lipgloss.Color("#16A34A") // green-600
-	ColorWarning   = lipgloss.Color("#D97706") // amber-600
-	ColorDanger    = lipgloss.Color("#DC2626") // red-600
-	ColorBorder    = lipgloss.Color("#374151") // gray-700
-	ColorSubtle    = lipgloss.Color("#9CA3AF") // gray-400
-	ColorHighlight = lipgloss.Color("#A78BFA") // violet-400
+	ColorPrimary   = theme.Active.Colors.Primary
+	ColorMuted     = theme.Active.Colors.Muted
+	ColorSuccess   = theme.Active.Colors.Success
+	ColorWarning   = theme.Active.Colors.Warning
+	ColorDanger    = theme.Active.Colors.Danger
+	ColorBorder    = theme.Active.Colors.Border
+	ColorSubtle    = theme.Active.Colors.Subtle
+	ColorHighlight = theme.Active.Colors.Highlight
 )
+
+// ApplyTheme reassigns all palette vars and rebuilds all lipgloss styles to
+// match theme.Active. Call this after calling theme.SetActive at runtime.
+func ApplyTheme() {
+	ColorPrimary = theme.Active.Colors.Primary
+	ColorMuted = theme.Active.Colors.Muted
+	ColorSuccess = theme.Active.Colors.Success
+	ColorWarning = theme.Active.Colors.Warning
+	ColorDanger = theme.Active.Colors.Danger
+	ColorBorder = theme.Active.Colors.Border
+	ColorSubtle = theme.Active.Colors.Subtle
+	ColorHighlight = theme.Active.Colors.Highlight
+
+	TitleStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).MarginBottom(1)
+	SubtitleStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
+	SectionStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorHighlight).MarginTop(1)
+	MutedStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	SuccessStyle = lipgloss.NewStyle().Foreground(ColorSuccess)
+	WarningStyle = lipgloss.NewStyle().Foreground(ColorWarning)
+	DangerStyle = lipgloss.NewStyle().Foreground(ColorDanger)
+	SelectedStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorHighlight)
+	BorderStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorBorder).
+		Padding(0, 1)
+	PopupStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorPrimary).
+		Padding(1, 2).
+		Width(60)
+	HelpStyle = lipgloss.NewStyle().Foreground(ColorMuted).MarginTop(1)
+	StatLabelStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	StatValueStyle = lipgloss.NewStyle().Bold(true)
+	CompletedNameStyle = lipgloss.NewStyle().Foreground(ColorPrimary).Strikethrough(true)
+	InactiveNameStyle = lipgloss.NewStyle().Foreground(ColorMuted).Italic(true)
+	ArchivedNameStyle = lipgloss.NewStyle().Foreground(ColorMuted).Italic(true)
+	DefaultNameStyle = lipgloss.NewStyle()
+	CompletedStatusStyle = lipgloss.NewStyle().Foreground(ColorPrimary)
+	SpinnerStyle = lipgloss.NewStyle().Foreground(ColorHighlight)
+	TableBorderStyle = lipgloss.NewStyle().Foreground(ColorBorder)
+	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorMuted).Bold(true)
+	TableSelectedStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
+	TableCellStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
+	titleRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
+
+	// Rebuild tab bar styles too.
+	rebuildTabStyles()
+}
 
 // Styles
 var (

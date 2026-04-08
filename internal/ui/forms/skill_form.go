@@ -68,25 +68,8 @@ func NewSkillEditForm(id, name, categoryID string, color *string) SkillForm {
 
 func buildSkillForm(st *skillFormState, title string) *huh.Form {
 	return huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title(title).
-				Description("Name").
-				Placeholder("e.g. Go").
-				Validate(func(s string) error {
-					if s == "" {
-						return fmt.Errorf("name is required")
-					}
-					return nil
-				}).
-				Value(&st.name),
-
-			huh.NewSelect[string]().
-				Title("Color (optional)").
-				Options(append([]huh.Option[string]{huh.NewOption("None", "")}, colorOptions...)...).
-				Value(&st.color),
-		),
-	).WithTheme(huh.ThemeDracula())
+		huh.NewGroup(skillNameInput(st, title), skillColorSelect(st)),
+	).WithTheme(ActiveTheme)
 }
 
 func buildSkillFormWithCatPicker(st *skillFormState, categories []model.Category, title string) *huh.Form {
@@ -99,29 +82,37 @@ func buildSkillFormWithCatPicker(st *skillFormState, categories []model.Category
 	}
 	return huh.NewForm(
 		huh.NewGroup(
-			huh.NewInput().
-				Title(title).
-				Description("Name").
-				Placeholder("e.g. Go").
-				Validate(func(s string) error {
-					if s == "" {
-						return fmt.Errorf("name is required")
-					}
-					return nil
-				}).
-				Value(&st.name),
-
+			skillNameInput(st, title),
 			huh.NewSelect[string]().
 				Title("Category").
 				Options(catOptions...).
 				Value(&st.categoryID),
-
-			huh.NewSelect[string]().
-				Title("Color (optional)").
-				Options(append([]huh.Option[string]{huh.NewOption("None", "")}, colorOptions...)...).
-				Value(&st.color),
+			skillColorSelect(st),
 		),
-	).WithTheme(huh.ThemeDracula())
+	).WithTheme(ActiveTheme)
+}
+
+// skillNameInput returns the shared name field for skill forms.
+func skillNameInput(st *skillFormState, title string) *huh.Input {
+	return huh.NewInput().
+		Title(title).
+		Description("Name").
+		Placeholder("e.g. Go").
+		Validate(func(s string) error {
+			if s == "" {
+				return fmt.Errorf("name is required")
+			}
+			return nil
+		}).
+		Value(&st.name)
+}
+
+// skillColorSelect returns the shared color picker field for skill forms.
+func skillColorSelect(st *skillFormState) *huh.Select[string] {
+	return huh.NewSelect[string]().
+		Title("Color (optional)").
+		Options(append([]huh.Option[string]{huh.NewOption("None", "")}, colorOptions...)...).
+		Value(&st.color)
 }
 
 // IsEdit reports whether this form is editing an existing skill.
@@ -161,11 +152,10 @@ func (sf SkillForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	form, cmd := sf.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		sf.form = f
-	}
-	if sf.form.State == huh.StateCompleted {
+	var cmd tea.Cmd
+	var done bool
+	sf.form, cmd, done = updateHuhForm(sf.form, msg)
+	if done {
 		return sf, func() tea.Msg { return SkillFormDoneMsg{Cancelled: false} }
 	}
 	return sf, cmd
