@@ -56,7 +56,7 @@ type trpcResponse[T any] struct {
 }
 
 func (c *Client) doRequest(req *http.Request) ([]byte, error) {
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("x-api-key", c.apiKey)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
