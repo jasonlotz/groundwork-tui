@@ -8,6 +8,8 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
@@ -125,16 +127,37 @@ func (m Model) View() string {
 	if len(m.categories) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No categories found.\n"))
 	} else {
-		visibleHeight := m.height - 6
-		if visibleHeight < 5 {
-			visibleHeight = 5
+		// title(2) + blank(1) + table header(1) + separator(1) + help(2) = 7
+		visibleHeight := m.height - 7
+		if visibleHeight < 3 {
+			visibleHeight = 3
 		}
 		start, end := common.VisibleWindow(m.cursor, len(m.categories), visibleHeight)
 
+		rows := make([][]string, end-start)
 		for i := start; i < end; i++ {
-			b.WriteString(m.renderRow(i))
-			b.WriteString("\n")
+			rows[i-start] = m.buildRow(i)
 		}
+
+		selectedIdx := m.cursor - start
+		t := table.New().
+			Headers("", "Name", "Skills", "").
+			Rows(rows...).
+			Border(lipgloss.HiddenBorder()).
+			BorderHeader(true).
+			BorderStyle(common.TableBorderStyle).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				switch {
+				case row == table.HeaderRow:
+					return common.TableHeaderStyle
+				case row == selectedIdx:
+					return common.TableSelectedStyle
+				default:
+					return common.TableCellStyle
+				}
+			})
+		b.WriteString(t.Render())
+		b.WriteString("\n")
 
 		if len(m.categories) > visibleHeight {
 			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
@@ -148,31 +171,36 @@ func (m Model) View() string {
 	return b.String()
 }
 
-func (m Model) renderRow(i int) string {
+func (m Model) buildRow(i int) []string {
 	cat := m.categories[i]
-	cursorStr := "  "
-	nameStyle := common.MutedStyle
-	switch {
-	case i == m.cursor:
-		cursorStr = common.SelectedStyle.Render("▶ ")
-		nameStyle = common.SelectedStyle
-	case cat.IsArchived:
-		nameStyle = common.ArchivedNameStyle
+
+	cursor := " "
+	if i == m.cursor {
+		cursor = common.SelectedStyle.Render("▶")
 	}
 
-	archived := ""
-	if cat.IsArchived {
-		archived = "  " + common.MutedStyle.Render("[archived]")
-	}
-
-	skillCount := common.MutedStyle.Render(fmt.Sprintf("(%d skills)", cat.SkillCount()))
 	dot := common.ColorDot(func() string {
 		if cat.Color != nil {
 			return *cat.Color
 		}
 		return ""
 	}())
+
+	nameStyle := common.TableCellStyle
+	switch {
+	case i == m.cursor:
+		nameStyle = common.TableSelectedStyle
+	case cat.IsArchived:
+		nameStyle = common.ArchivedNameStyle
+	}
 	name := nameStyle.Render(common.Truncate(cat.Name, 30))
 
-	return cursorStr + dot + " " + name + "  " + skillCount + archived
+	skillCount := fmt.Sprintf("%d", cat.SkillCount())
+
+	archived := ""
+	if cat.IsArchived {
+		archived = "[archived]"
+	}
+
+	return []string{cursor, dot + " " + name, skillCount, archived}
 }

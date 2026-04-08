@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
@@ -175,10 +177,10 @@ func (m Model) View() string {
 	if len(d.SkillsSummary) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No skills.\n"))
 	} else {
-		// Reserve: title(2) + kpis(3) + active header+rows(~7) + skills header(2) + help(2)
-		usedLines := 16
+		// Reserve: title(2) + kpis(3) + active header+rows(~7) + skills header(2) + table header(1) + separator(1) + help(2)
+		usedLines := 18
 		if len(d.ActiveMaterials) == 0 {
-			usedLines = 9
+			usedLines = 11
 		}
 		visibleHeight := m.height - usedLines
 		if visibleHeight < 3 {
@@ -186,10 +188,31 @@ func (m Model) View() string {
 		}
 		start, end := common.VisibleWindow(m.cursor, len(d.SkillsSummary), visibleHeight)
 
+		rows := make([][]string, end-start)
 		for i := start; i < end; i++ {
-			b.WriteString(m.renderSkillRow(i))
-			b.WriteString("\n")
+			rows[i-start] = m.buildSkillRow(i)
 		}
+
+		selectedIdx := m.cursor - start
+		t := table.New().
+			Headers("", "Skill", "Progress", "Materials", "").
+			Rows(rows...).
+			Border(lipgloss.HiddenBorder()).
+			BorderHeader(true).
+			BorderStyle(common.TableBorderStyle).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				switch {
+				case row == table.HeaderRow:
+					return common.TableHeaderStyle
+				case row == selectedIdx:
+					return common.TableSelectedStyle
+				default:
+					return common.TableCellStyle
+				}
+			})
+		b.WriteString(t.Render())
+		b.WriteString("\n")
+
 		if len(d.SkillsSummary) > visibleHeight {
 			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d skills\n", start+1, end, len(d.SkillsSummary),
@@ -202,29 +225,14 @@ func (m Model) View() string {
 	return b.String()
 }
 
-func (m Model) renderSkillRow(i int) string {
+func (m Model) buildSkillRow(i int) []string {
 	s := m.data.SkillsSummary[i]
-	cursorStr := "  "
-	nameStyle := common.MutedStyle
-	switch {
-	case i == m.cursor:
-		cursorStr = common.SelectedStyle.Render("▶ ")
-		nameStyle = common.SelectedStyle
-	case s.IsArchived:
-		nameStyle = common.ArchivedNameStyle
+
+	cursor := " "
+	if i == m.cursor {
+		cursor = common.SelectedStyle.Render("▶")
 	}
 
-	archived := ""
-	if s.IsArchived {
-		archived = common.MutedStyle.Render(" [archived]")
-	}
-
-	pct := 0.0
-	if s.TotalUnits > 0 {
-		pct = s.CompletedUnits / s.TotalUnits
-	}
-	bar := common.RenderBar(m.barNarrow, pct)
-	meta := common.MutedStyle.Render(fmt.Sprintf("%d active / %d total", s.ActiveMaterialCount, s.MaterialCount))
 	dot := common.ColorDot(func() string {
 		if s.Color != nil {
 			return *s.Color
@@ -232,5 +240,27 @@ func (m Model) renderSkillRow(i int) string {
 		return ""
 	}())
 
-	return cursorStr + dot + " " + nameStyle.Render(common.Truncate(s.Name, 24)) + archived + "  " + bar + "  " + meta
+	nameStyle := common.TableCellStyle
+	switch {
+	case i == m.cursor:
+		nameStyle = common.TableSelectedStyle
+	case s.IsArchived:
+		nameStyle = common.ArchivedNameStyle
+	}
+	name := dot + " " + nameStyle.Render(common.Truncate(s.Name, 24))
+
+	pct := 0.0
+	if s.TotalUnits > 0 {
+		pct = s.CompletedUnits / s.TotalUnits
+	}
+	bar := common.RenderBar(m.barNarrow, pct)
+
+	meta := fmt.Sprintf("%d active / %d total", s.ActiveMaterialCount, s.MaterialCount)
+
+	archived := ""
+	if s.IsArchived {
+		archived = "[archived]"
+	}
+
+	return []string{cursor, name, bar, meta, archived}
 }

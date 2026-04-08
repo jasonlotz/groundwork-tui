@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
@@ -166,17 +168,38 @@ func (m Model) View() string {
 	if len(d.AllMaterials) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No materials.\n"))
 	} else {
-		// title(2) + kpis(3) + section(2) + help(2) = 9
-		visibleItems := (m.height - 9) / 2
+		// title(2) + kpis(3) + section(2) + table header(1) + separator(1) + help(2) = 11
+		visibleItems := m.height - 11
 		if visibleItems < 3 {
 			visibleItems = 3
 		}
 		start, end := common.VisibleWindow(m.cursor, len(d.AllMaterials), visibleItems)
 
+		rows := make([][]string, end-start)
 		for i := start; i < end; i++ {
-			b.WriteString(m.renderMaterialRow(i))
-			b.WriteString("\n")
+			rows[i-start] = m.buildMaterialRow(i)
 		}
+
+		selectedIdx := m.cursor - start
+		t := table.New().
+			Headers("", "Material", "Status", "Progress", "Type").
+			Rows(rows...).
+			Border(lipgloss.HiddenBorder()).
+			BorderHeader(true).
+			BorderStyle(common.TableBorderStyle).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				switch {
+				case row == table.HeaderRow:
+					return common.TableHeaderStyle
+				case row == selectedIdx:
+					return common.TableSelectedStyle
+				default:
+					return common.TableCellStyle
+				}
+			})
+		b.WriteString(t.Render())
+		b.WriteString("\n")
+
 		if len(d.AllMaterials) > visibleItems {
 			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d\n", start+1, end, len(d.AllMaterials),
@@ -189,30 +212,34 @@ func (m Model) View() string {
 	return b.String()
 }
 
-func (m Model) renderMaterialRow(i int) string {
+func (m Model) buildMaterialRow(i int) []string {
 	mat := m.data.AllMaterials[i]
 	selected := i == m.cursor
 
-	cursorStr := "  "
-	nameStyle := common.DefaultNameStyle
+	cursor := " "
+	if selected {
+		cursor = common.SelectedStyle.Render("▶")
+	}
+
+	dot := common.ColorDot(func() string {
+		if m.data.Skill.Color != nil {
+			return *m.data.Skill.Color
+		}
+		return ""
+	}())
+
+	nameStyle := common.TableCellStyle
 	switch {
 	case selected:
-		cursorStr = common.SelectedStyle.Render("▶ ")
-		nameStyle = common.SelectedStyle
+		nameStyle = common.TableSelectedStyle
 	case mat.Status == model.StatusComplete:
 		nameStyle = common.CompletedNameStyle
 	case mat.Status == model.StatusInactive:
 		nameStyle = common.InactiveNameStyle
 	}
+	name := dot + " " + nameStyle.Render(common.Truncate(mat.Name, 32))
 
-	pct := 0.0
-	if mat.TotalUnits > 0 {
-		pct = mat.CompletedUnits / mat.TotalUnits
-	}
-	bar := common.RenderBar(m.bar, pct)
-	progress := common.MutedStyle.Render(fmt.Sprintf("%.4g/%.4g %s", mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label()))
-
-	statusStyle := common.MutedStyle
+	statusStyle := common.TableCellStyle
 	statusStr := "inactive"
 	switch mat.Status {
 	case model.StatusActive:
@@ -222,10 +249,15 @@ func (m Model) renderMaterialRow(i int) string {
 		statusStyle = common.CompletedStatusStyle
 		statusStr = "done"
 	}
+	status := statusStyle.Render(statusStr)
 
-	typeName := common.MutedStyle.Render(common.Truncate(mat.MaterialType.Name, 14))
-	name := nameStyle.Render(common.Truncate(mat.Name, 32))
-	line1 := cursorStr + name + "  " + statusStyle.Render(statusStr)
-	line2 := "    " + bar + "  " + progress + "  " + typeName
-	return line1 + "\n" + line2
+	pct := 0.0
+	if mat.TotalUnits > 0 {
+		pct = mat.CompletedUnits / mat.TotalUnits
+	}
+	bar := common.RenderBar(m.bar, pct)
+
+	typeName := common.Truncate(mat.MaterialType.Name, 14)
+
+	return []string{cursor, name, status, bar, typeName}
 }

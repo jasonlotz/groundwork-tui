@@ -19,7 +19,6 @@ var (
 	ColorBorder    = lipgloss.Color("#374151") // gray-700
 	ColorSubtle    = lipgloss.Color("#9CA3AF") // gray-400
 	ColorHighlight = lipgloss.Color("#A78BFA") // violet-400
-	ColorCardBg    = lipgloss.Color("#1F1635") // very dark violet tint for stat cards
 )
 
 // Styles
@@ -53,11 +52,10 @@ var (
 			Bold(true).
 			Foreground(ColorHighlight)
 
-	// BorderStyle is used for KPI stat cards — subtle background tint.
+	// BorderStyle is used for KPI stat cards.
 	BorderStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(ColorBorder).
-			Background(ColorCardBg).
 			Padding(0, 1)
 
 	HelpStyle = lipgloss.NewStyle().
@@ -65,12 +63,10 @@ var (
 			MarginTop(1)
 
 	StatLabelStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted).
-			Background(ColorCardBg)
+			Foreground(ColorMuted)
 
 	StatValueStyle = lipgloss.NewStyle().
-			Bold(true).
-			Background(ColorCardBg)
+			Bold(true)
 
 	// CompletedNameStyle renders completed material names with strikethrough.
 	CompletedNameStyle = lipgloss.NewStyle().

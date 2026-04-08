@@ -186,9 +186,20 @@ func (m Model) View() string {
 	if len(m.activeMaterials) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No active materials.\n"))
 	} else {
-		for i, mat := range m.activeMaterials {
-			b.WriteString(m.renderMaterialRow(i, mat))
+		// title(2) + blank(1) + kpis(3) + section(2) + help(2) = 10; each item is 2 lines
+		visibleItems := (m.height - 10) / 2
+		if visibleItems < 3 {
+			visibleItems = 3
+		}
+		start, end := common.VisibleWindow(m.cursor, len(m.activeMaterials), visibleItems)
+		for i := start; i < end; i++ {
+			b.WriteString(m.renderMaterialRow(i, m.activeMaterials[i]))
 			b.WriteString("\n")
+		}
+		if len(m.activeMaterials) > visibleItems {
+			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+				"  %d–%d of %d\n", start+1, end, len(m.activeMaterials),
+			)))
 		}
 	}
 

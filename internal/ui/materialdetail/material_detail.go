@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	"github.com/muesli/termenv"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
@@ -196,18 +198,49 @@ func (m Model) View() string {
 		b.WriteString(common.SectionStyle.Render("Progress Log"))
 		b.WriteString("\n")
 
-		// title(2)+kpis(3)+bar(1)+meta(~4)+section(2)+help(2) = ~14
-		usedLines := 14 + len(metaLines)
+		// title(2)+kpis(3)+bar(1)+meta(~4)+section(2)+table header(1)+separator(1)+help(2) = ~15
+		usedLines := 15 + len(metaLines)
 		visibleHeight := m.height - usedLines
 		if visibleHeight < 3 {
 			visibleHeight = 3
 		}
 		start, end := common.VisibleWindow(m.logCursor, len(m.data.ProgressLogs), visibleHeight)
 
+		rows := make([][]string, end-start)
 		for i := start; i < end; i++ {
-			b.WriteString(m.renderLogRow(i))
-			b.WriteString("\n")
+			log := m.data.ProgressLogs[i]
+			cursor := " "
+			if i == m.logCursor {
+				cursor = common.SelectedStyle.Render("▶")
+			}
+			units := fmt.Sprintf("%.4g %s", log.Units, mat.UnitType.Label())
+			notes := ""
+			if log.Notes != nil && *log.Notes != "" {
+				notes = common.Truncate(*log.Notes, 30)
+			}
+			rows[i-start] = []string{cursor, log.Date.Value, units, notes}
 		}
+
+		selectedIdx := m.logCursor - start
+		t := table.New().
+			Headers("", "Date", "Units", "Notes").
+			Rows(rows...).
+			Border(lipgloss.HiddenBorder()).
+			BorderHeader(true).
+			BorderStyle(common.TableBorderStyle).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				switch {
+				case row == table.HeaderRow:
+					return common.TableHeaderStyle
+				case row == selectedIdx:
+					return common.TableSelectedStyle
+				default:
+					return common.TableCellStyle
+				}
+			})
+		b.WriteString(t.Render())
+		b.WriteString("\n")
+
 		if len(m.data.ProgressLogs) > visibleHeight {
 			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d entries\n", start+1, end, len(m.data.ProgressLogs),
@@ -218,23 +251,4 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
 	return b.String()
-}
-
-func (m Model) renderLogRow(i int) string {
-	log := m.data.ProgressLogs[i]
-	cursorStr := "  "
-	if i == m.logCursor {
-		cursorStr = common.SelectedStyle.Render("▶ ")
-	}
-
-	mat := m.data.Material
-	units := fmt.Sprintf("%.4g %s", log.Units, mat.UnitType.Label())
-	notesStr := ""
-	if log.Notes != nil && *log.Notes != "" {
-		notesStr = "  " + common.MutedStyle.Render(common.Truncate(*log.Notes, 30))
-	}
-
-	dateCol := common.MutedStyle.Copy().Width(12).Render(log.Date.Value)
-	unitsCol := common.StatValueStyle.Render(fmt.Sprintf("%-12s", units))
-	return cursorStr + dateCol + " " + unitsCol + notesStr
 }
