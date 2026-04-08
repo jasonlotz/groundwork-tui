@@ -187,9 +187,13 @@ func VisibleWindow(cursor, total, height int) (start, end int) {
 	return start, end
 }
 
-// ErrorView returns the standard error message string.
-func ErrorView(err error) string {
-	return DangerStyle.Render("\n  Error: " + err.Error() + "\n\n  Press r to retry, esc to go back.")
+// ErrorView returns the standard error message string, word-wrapped to width.
+func ErrorView(err error, width int) string {
+	w := width - 4
+	if w < 40 {
+		w = 40
+	}
+	return DangerStyle.Copy().Width(w).Render("\n  Error: " + err.Error() + "\n\n  Press r to retry, esc to go back.")
 }
 
 // RenderKPICards renders a horizontal row of bordered stat cards.

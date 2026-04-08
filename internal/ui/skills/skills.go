@@ -114,7 +114,7 @@ func (m Model) View() string {
 		return common.SpinnerView(m.spinner)
 	}
 	if m.err != nil {
-		return common.ErrorView(m.err)
+		return common.ErrorView(m.err, m.width)
 	}
 
 	var b strings.Builder
