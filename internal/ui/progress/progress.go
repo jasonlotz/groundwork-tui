@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
@@ -23,10 +24,11 @@ type Model struct {
 	err     error
 	width   int
 	height  int
+	spinner spinner.Model
 }
 
 func New(client *api.Client) Model {
-	return Model{client: client, loading: true}
+	return Model{client: client, loading: true, spinner: common.NewSpinner()}
 }
 
 func load(c *api.Client) tea.Cmd {
@@ -40,7 +42,7 @@ func load(c *api.Client) tea.Cmd {
 }
 
 func (m Model) Init() tea.Cmd {
-	return load(m.client)
+	return tea.Batch(load(m.client), m.spinner.Tick)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -56,6 +58,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case common.ErrMsg:
 		m.err = msg.Err
 		m.loading = false
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -82,7 +89,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	if m.loading {
-		return common.LoadingView()
+		return common.SpinnerView(m.spinner)
 	}
 	if m.err != nil {
 		return common.ErrorView(m.err)

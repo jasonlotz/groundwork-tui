@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -43,12 +44,14 @@ type Model struct {
 	err             error
 	width           int
 	height          int
+	spinner         spinner.Model
 }
 
 func New(client *api.Client) Model {
 	return Model{
 		client:  client,
 		loading: true,
+		spinner: common.NewSpinner(),
 	}
 }
 
@@ -56,6 +59,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		loadOverview(m.client),
 		loadActiveMaterials(m.client),
+		m.spinner.Tick,
 	)
 }
 
@@ -96,6 +100,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		m.loading = false
 
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -134,7 +143,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	if m.loading {
-		return common.LoadingView()
+		return common.SpinnerView(m.spinner)
 	}
 	if m.err != nil {
 		return common.DangerStyle.Render("\n  Error: " + m.err.Error() + "\n\n  Press r to retry, q to quit.")
