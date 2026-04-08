@@ -61,10 +61,6 @@ func New(client *api.Client) Model {
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "detail"),
 			common.KB("l", "log progress"),
-			common.KB("c", "categories"),
-			common.KB("s", "skills"),
-			common.KB("m", "materials"),
-			common.KB("p", "progress log"),
 			common.KB("r", "refresh"),
 			common.KB("q", "quit"),
 		}},
@@ -163,14 +159,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				id := m.activeMaterials[m.cursor].ID
 				return m, func() tea.Msg { return OpenMaterialMsg{MaterialID: id} }
 			}
-		case "m":
-			return m, func() tea.Msg { return ScreenMaterials }
-		case "s":
-			return m, func() tea.Msg { return ScreenSkills }
-		case "p":
-			return m, func() tea.Msg { return ScreenProgress }
-		case "c":
-			return m, func() tea.Msg { return ScreenCategories }
 		case "l":
 			if len(m.activeMaterials) > 0 {
 				mat := m.activeMaterials[m.cursor]
@@ -210,8 +198,8 @@ func (m Model) View() string {
 	if len(m.activeMaterials) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No active materials.\n"))
 	} else {
-		// RenderTitle=3 + blank=1 + KPIs=3 + blank=1 + Section=2 + blank=1 + help=2 = 13 overhead; each item is 4 lines
-		visibleItems := (m.height - 13) / 4
+		// RenderTitle=3 + blank=1 + KPIs=3 + blank=1 + Section=2 + blank=1 + help=2 = 13 overhead; tab bar=3 → 16; each item is 4 lines
+		visibleItems := (m.height - 16) / 4
 		if visibleItems < 2 {
 			visibleItems = 2
 		}

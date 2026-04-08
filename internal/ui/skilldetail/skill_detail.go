@@ -186,8 +186,8 @@ func (m Model) View() string {
 	if len(d.AllMaterials) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No materials.\n"))
 	} else {
-		// RenderTitle=3 + blank=1 + KPIs=3 + blank=1 + Section=2 + table-header=1 + table-sep=1 + blank=1 + help=2 = 15 overhead
-		visibleItems := m.height - 15
+		// RenderTitle=3 + blank=1 + KPIs=3 + blank=1 + Section=2 + table-header=1 + table-sep=1 + blank=1 + help=2 = 15 overhead; tab bar=3 → 18
+		visibleItems := m.height - 18
 		if visibleItems < 3 {
 			visibleItems = 3
 		}

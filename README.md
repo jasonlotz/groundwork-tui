@@ -77,6 +77,17 @@ To reconfigure, delete the config file and relaunch.
 
 ## Key bindings
 
+### Global (all screens)
+
+| Key | Action         |
+| --- | -------------- |
+| `d` | Dashboard tab  |
+| `c` | Categories tab |
+| `s` | Skills tab     |
+| `m` | Materials tab  |
+| `p` | Progress tab   |
+| `q` | Quit           |
+
 ### Dashboard
 
 | Key       | Action                        |
@@ -84,12 +95,7 @@ To reconfigure, delete the config file and relaunch.
 | `j` / `k` | Navigate active materials     |
 | `enter`   | Open material detail          |
 | `l`       | Log progress on selected item |
-| `c`       | Categories screen             |
-| `s`       | Skills screen                 |
-| `m`       | Materials screen              |
-| `p`       | Progress log                  |
 | `r`       | Refresh                       |
-| `q`       | Quit                          |
 
 ### Materials list / Skill detail
 
@@ -263,6 +269,7 @@ This is the architectural center of the application. Read it alongside `main.go`
 type Model struct {
     client         *api.Client
     current        screen          // which screen is showing
+    activeTab      screen          // top-level tab (unchanged when drilling into details)
     navStack       []screenState   // navigation history
     dashboard      dashboard.Model
     materialsList  materials.Model
@@ -275,20 +282,13 @@ type Model struct {
 
 Singleton screens (`dashboard`, `materialsList`, etc.) are value fields — they're created once in `New()` and persist for the life of the app. Context-dependent screens (`categoryDetail`, `skillDetail`, `materialDetail`) are pointer fields because they're created fresh each time you navigate into one.
 
-**Navigation with a stack**
+**Navigation with a stack and tab bar**
 
-The `navStack []screenState` is a simple slice used as a stack. `pushScreen(s)` saves a snapshot of the current screen pointers and sets `m.current = s`. `popScreen()` restores the top snapshot. This gives you browser-style back navigation without any routing library:
+The `navStack []screenState` is a simple slice used as a stack. `pushScreen(s)` saves a snapshot of the current screen pointers and sets `m.current = s`. `popScreen()` restores the top snapshot. This gives you browser-style back navigation without any routing library.
 
-```go
-func (m *Model) pushScreen(s screen) {
-    m.navStack = append(m.navStack, screenState{
-        id:             m.current,
-        categoryDetail: m.categoryDetail,
-        // ...
-    })
-    m.current = s
-}
-```
+`activeTab` tracks which top-level tab the user is on. It does not change when drilling into a detail screen (e.g. category → skill → material), so the correct tab stays highlighted the whole time. `switchTab(s)` handles three cases: already on that tab at the top level (no-op), on a detail screen within that tab (pop back to the list), or switching to a different tab (clear the stack, re-init).
+
+The global `d/c/s/m/p` key bindings in `app.Update()` call `switchTab` before delegating to the active screen, so they work from anywhere — including detail screens.
 
 **The Update two-step**
 
@@ -411,22 +411,14 @@ func (m Model) View() string {
 
 **Navigating upward**
 
-When the user presses `m`, the dashboard doesn't navigate anywhere itself — it just emits a message:
+When the user presses `enter` on an active material, the dashboard doesn't navigate anywhere itself — it just emits a message:
 
 ```go
-case "m":
-    return m, func() tea.Msg { return ScreenMaterials }
+case "enter":
+    return m, func() tea.Msg { return OpenMaterialMsg{MaterialID: id} }
 ```
 
-`app.Update()` receives `dashboard.NavigateMsg("materials")` and handles the actual push:
-
-```go
-case dashboard.NavigateMsg:
-    m.pushScreen(screenMaterials)
-    return m, m.materialsList.Init()
-```
-
-The screen's `Init()` is called at the moment of navigation — this is what triggers the data load for the new screen.
+`app.Update()` receives `dashboard.OpenMaterialMsg`, creates a `materialdetail.Model`, and pushes the detail screen. Tab switches (`d/c/s/m/p`) are intercepted globally in `app.Update()` via `switchTab()` before delegation, so screens never handle them directly.
 
 ### The `common` package: `internal/ui/common/`
 

@@ -366,10 +366,10 @@ func (m Model) View() string {
 	if len(d.SkillsSummary) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No skills.\n"))
 	} else {
-		// Reserve: title(2) + kpis(3) + active header+rows(~7) + skills header(2) + table header(1) + separator(1) + help(2)
-		usedLines := 18
+		// Reserve: title(2) + kpis(3) + active header+rows(~7) + skills header(2) + table header(1) + separator(1) + help(2); tab bar=3
+		usedLines := 21
 		if len(d.ActiveMaterials) == 0 {
-			usedLines = 11
+			usedLines = 14
 		}
 		visibleHeight := m.height - usedLines
 		if visibleHeight < 3 {

@@ -21,10 +21,10 @@ type screen int
 
 const (
 	screenDashboard screen = iota
-	screenMaterials
-	screenSkills
-	screenProgress
 	screenCategories
+	screenSkills
+	screenMaterials
+	screenProgress
 	screenCategoryDetail
 	screenSkillDetail
 	screenMaterialDetail
@@ -43,7 +43,8 @@ type screenState struct {
 type Model struct {
 	client         *api.Client
 	current        screen
-	navStack       []screenState // previous screens for esc/back
+	activeTab      screen // top-level tab; does not change when pushing detail screens
+	navStack       []screenState
 	dashboard      dashboard.Model
 	materialsList  materials.Model
 	skillsList     skills.Model
@@ -62,6 +63,7 @@ func New(client *api.Client) Model {
 	return Model{
 		client:         client,
 		current:        screenDashboard,
+		activeTab:      screenDashboard,
 		dashboard:      dashboard.New(client),
 		materialsList:  materials.New(client),
 		skillsList:     skills.New(client),
@@ -89,6 +91,7 @@ func (m *Model) pushScreen(s screen) {
 func (m *Model) popScreen() tea.Cmd {
 	if len(m.navStack) == 0 {
 		m.current = screenDashboard
+		m.activeTab = screenDashboard
 		return nil
 	}
 	top := m.navStack[len(m.navStack)-1]
@@ -97,7 +100,41 @@ func (m *Model) popScreen() tea.Cmd {
 	m.categoryDetail = top.categoryDetail
 	m.skillDetail = top.skillDetail
 	m.materialDetail = top.materialDetail
+	// keep activeTab unchanged — it tracks the top-level tab root
 	return nil
+}
+
+// switchTab jumps to a top-level tab. If already on that tab at the top level,
+// it's a no-op. If on a detail screen within that tab, it pops back to the list.
+func (m *Model) switchTab(s screen) (tea.Model, tea.Cmd) {
+	// Already on this tab at the top level — do nothing.
+	if m.activeTab == s && m.current == s {
+		return m, nil
+	}
+	// Already on this tab but inside a detail screen — pop back to the list.
+	if m.activeTab == s {
+		m.navStack = nil
+		m.current = s
+		return m, nil
+	}
+	// Switching to a different tab — clear stack, re-init.
+	m.navStack = nil
+	m.activeTab = s
+	m.current = s
+	m.toast = ""
+	switch s {
+	case screenDashboard:
+		return m, m.dashboard.Init()
+	case screenMaterials:
+		return m, m.materialsList.Init()
+	case screenSkills:
+		return m, m.skillsList.Init()
+	case screenProgress:
+		return m, m.progressList.Init()
+	case screenCategories:
+		return m, m.categoriesList.Init()
+	}
+	return m, nil
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -106,8 +143,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// Forward size to all persistent screen models so they know their
-		// dimensions even if they weren't active when the message first arrived.
+		// Forward size to all persistent screen models.
 		if updated, _ := m.dashboard.Update(msg); updated != nil {
 			m.dashboard = updated.(dashboard.Model)
 		}
@@ -206,6 +242,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.materialDetail.Init()
 	}
 
+	// --- global tab-switch keys (work from any screen) ---
+	if key, ok := msg.(tea.KeyMsg); ok {
+		switch key.String() {
+		case "d":
+			return m.switchTab(screenDashboard)
+		case "m":
+			return m.switchTab(screenMaterials)
+		case "s":
+			return m.switchTab(screenSkills)
+		case "p":
+			return m.switchTab(screenProgress)
+		case "c":
+			return m.switchTab(screenCategories)
+		}
+	}
+
 	// Clear toast on any key.
 	if _, ok := msg.(tea.KeyMsg); ok && m.toast != "" {
 		m.toast = ""
@@ -272,17 +324,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) handleDashboardNav(nav dashboard.NavigateMsg) (tea.Model, tea.Cmd) {
 	switch nav {
 	case dashboard.ScreenMaterials:
-		m.pushScreen(screenMaterials)
-		return m, m.materialsList.Init()
+		return m.switchTab(screenMaterials)
 	case dashboard.ScreenSkills:
-		m.pushScreen(screenSkills)
-		return m, m.skillsList.Init()
+		return m.switchTab(screenSkills)
 	case dashboard.ScreenProgress:
-		m.pushScreen(screenProgress)
-		return m, m.progressList.Init()
+		return m.switchTab(screenProgress)
 	case dashboard.ScreenCategories:
-		m.pushScreen(screenCategories)
-		return m, m.categoriesList.Init()
+		return m.switchTab(screenCategories)
 	}
 	return m, nil
 }
@@ -315,16 +363,17 @@ func (m Model) View() string {
 		}
 	}
 
+	tabBar := common.RenderTabBar(int(m.activeTab), m.width)
+
 	if m.toast == "" {
-		return content
+		return lipgloss.JoinVertical(lipgloss.Left, tabBar, content)
 	}
 
-	// Overlay a toast at the bottom.
 	toastStyle := common.SuccessStyle
 	if m.toastIsErr {
 		toastStyle = common.DangerStyle
 	}
 	toast := toastStyle.Render("  " + m.toast)
 
-	return lipgloss.JoinVertical(lipgloss.Left, content, toast)
+	return lipgloss.JoinVertical(lipgloss.Left, tabBar, content, toast)
 }

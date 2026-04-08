@@ -70,6 +70,7 @@ internal/
       spinner.go         — pre-configured spinner
       help.go            — pre-configured help bar
       keys.go            — key binding helpers
+      tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen
     setup/
       setup.go           — first-run wizard (Huh form for base URL + API key)
     dashboard/           — home screen: KPI cards + active materials list
@@ -111,6 +112,7 @@ Overhead must account for every rendered line above and below the list. Key line
 - `RenderTitle(s, w)` = **3 lines**: title text + implicit `MarginBottom(1)` + rule line. Always 3, never 1 or 2.
 - `HelpStyle` / `SectionStyle` both have `MarginTop(1)` = **2 lines** (margin + text).
 - An explicit `b.WriteString("\n")` = **1 line**.
+- **Tab bar** = **3 lines**: top-border row + label row + rule row. Add 3 to every screen's overhead.
 
 Recount from the `View()` source every time you change layout; do not guess.
 

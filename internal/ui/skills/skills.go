@@ -164,8 +164,8 @@ func (m Model) View() string {
 			}
 		}
 
-		// RenderTitle=3 + blank=1 + blank-before-count=1 + count=1 + blank=1 + help=2 = 9 overhead; each row is 1 line
-		visibleHeight := m.height - 9
+		// RenderTitle=3 + blank=1 + blank-before-count=1 + count=1 + blank=1 + help=2 = 9 overhead; tab bar=3 → 12; each row is 1 line
+		visibleHeight := m.height - 12
 		if visibleHeight < 5 {
 			visibleHeight = 5
 		}
