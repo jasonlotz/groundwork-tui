@@ -1,7 +1,11 @@
 // Package common provides shared TUI styles and components.
 package common
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Palette — a small set of consistent colors.
 var (
@@ -83,11 +87,54 @@ func ProgressBar(pct float64, width int) string {
 }
 
 func repeatChar(ch string, n int) string {
-	out := ""
-	for i := 0; i < n; i++ {
-		out += ch
+	return strings.Repeat(ch, n)
+}
+
+// Truncate shortens s to at most n runes, adding "…" if truncated.
+// Uses rune-aware slicing so multi-byte characters are handled correctly.
+func Truncate(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
 	}
-	return out
+	return string(runes[:n-1]) + "…"
+}
+
+// VisibleWindow computes the start/end slice indices to keep cursor visible
+// within a window of size height over a list of total items.
+func VisibleWindow(cursor, total, height int) (start, end int) {
+	if total <= height {
+		return 0, total
+	}
+	start = cursor - height/2
+	if start < 0 {
+		start = 0
+	}
+	end = start + height
+	if end > total {
+		end = total
+		start = end - height
+	}
+	return start, end
+}
+
+// LoadingView returns the standard loading placeholder string.
+func LoadingView() string {
+	return MutedStyle.Render("\n  Loading…")
+}
+
+// ErrorView returns the standard error message string.
+func ErrorView(err error) string {
+	return DangerStyle.Render("\n  Error: " + err.Error() + "\n\n  Press r to retry, esc to go back.")
+}
+
+// RenderKPICards renders a horizontal row of bordered stat cards.
+func RenderKPICards(cards []string) string {
+	rendered := make([]string, len(cards))
+	for i, c := range cards {
+		rendered[i] = BorderStyle.Render(c)
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
 }
 
 // StatCard renders a small labeled stat block.

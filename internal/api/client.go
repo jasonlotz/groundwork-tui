@@ -233,3 +233,42 @@ func (c *Client) LogUnits(materialID, date string, units float64, notes *string)
 	})
 	return err
 }
+
+type getCategoryDataInput struct {
+	CategoryID string `json:"categoryId"`
+}
+
+// GetCategoryData calls dashboard.getCategoryData.
+func (c *Client) GetCategoryData(categoryID string) (*model.CategoryDetail, error) {
+	out, err := query[model.CategoryDetail](c, "dashboard.getCategoryData", getCategoryDataInput{CategoryID: categoryID})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+type getSkillDataInput struct {
+	SkillID string `json:"skillId"`
+}
+
+// GetSkillData calls dashboard.getSkillData.
+func (c *Client) GetSkillData(skillID string) (*model.SkillDetail, error) {
+	out, err := query[model.SkillDetail](c, "dashboard.getSkillData", getSkillDataInput{SkillID: skillID})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+type getMaterialDetailInput struct {
+	MaterialID string `json:"materialId"`
+}
+
+// GetMaterialDetail calls dashboard.getMaterialDetail.
+func (c *Client) GetMaterialDetail(materialID string) (*model.MaterialDetail, error) {
+	out, err := query[model.MaterialDetail](c, "dashboard.getMaterialDetail", getMaterialDetailInput{MaterialID: materialID})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

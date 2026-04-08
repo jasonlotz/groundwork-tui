@@ -1,8 +1,43 @@
 // Package model contains Go types that mirror the Groundwork tRPC API
 // response shapes. Only the fields the TUI actually uses are included.
+//
+// Note on superjson: The server uses superjson which serializes Date objects
+// as {"$date": "2024-01-15T00:00:00.000Z"}. Fields typed as SuperJSONDate
+// handle this transparently via custom UnmarshalJSON.
 package model
 
-import "time"
+import (
+	"encoding/json"
+	"strings"
+	"time"
+)
+
+// SuperJSONDate is a date that may arrive as either a plain string ("2024-01-15")
+// or a superjson Date object ({"$date":"2024-01-15T00:00:00.000Z"}).
+type SuperJSONDate struct {
+	Value string // always "YYYY-MM-DD" after unmarshalling
+}
+
+func (d *SuperJSONDate) UnmarshalJSON(b []byte) error {
+	// Try plain string first
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		d.Value = strings.SplitN(s, "T", 2)[0]
+		return nil
+	}
+	// Try superjson object: {"$date": "..."}
+	var obj struct {
+		Date string `json:"$date"`
+	}
+	if err := json.Unmarshal(b, &obj); err == nil && obj.Date != "" {
+		d.Value = strings.SplitN(obj.Date, "T", 2)[0]
+		return nil
+	}
+	d.Value = ""
+	return nil
+}
+
+func (d SuperJSONDate) String() string { return d.Value }
 
 // UnitType mirrors the Prisma UnitType enum.
 type UnitType string
@@ -18,8 +53,32 @@ const (
 	UnitTypeVideos   UnitType = "VIDEOS"
 )
 
-// UnitLabel returns a human-readable plural label for a unit type.
+// Label returns a human-readable plural label for a unit type.
 func (u UnitType) Label() string {
+	switch u {
+	case UnitTypeHours:
+		return "hrs"
+	case UnitTypeChapters:
+		return "ch"
+	case UnitTypeSections:
+		return "sec"
+	case UnitTypeModules:
+		return "mod"
+	case UnitTypeEpisodes:
+		return "ep"
+	case UnitTypePages:
+		return "pg"
+	case UnitTypeLessons:
+		return "les"
+	case UnitTypeVideos:
+		return "vid"
+	default:
+		return "u"
+	}
+}
+
+// LabelFull returns the full plural label.
+func (u UnitType) LabelFull() string {
 	switch u {
 	case UnitTypeHours:
 		return "hours"
@@ -52,12 +111,13 @@ const (
 )
 
 // --- dashboard.getOverview ---
+// shape: { activeMaterials, completedMaterials, completionPct, streak, longestStreak }
 
 type Overview struct {
 	ActiveMaterials int     `json:"activeMaterials"`
+	CompletedCount  int     `json:"completedMaterials"`
 	CompletionPct   float64 `json:"completionPct"`
-	CompletedCount  int     `json:"completedCount"`
-	CurrentStreak   int     `json:"currentStreak"`
+	CurrentStreak   int     `json:"streak"`
 	LongestStreak   int     `json:"longestStreak"`
 }
 
@@ -80,44 +140,103 @@ type ChartData struct {
 }
 
 // --- dashboard.getActiveMaterials ---
+// shape: { id, name, url, totalUnits, unitType, weeklyUnitGoal,
+//          skill: { id, name, color },
+//          completedUnits, unitsThisWeek, pctComplete, projectedEndDate }
+
+type ActiveMaterialSkill struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Color *string `json:"color"`
+}
 
 type ActiveMaterial struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	UnitType         UnitType `json:"unitType"`
-	TotalUnits       float64  `json:"totalUnits"`
-	CompletedUnits   float64  `json:"completedUnits"`
-	WeeklyUnitGoal   *int     `json:"weeklyUnitGoal"`
-	UnitsThisWeek    float64  `json:"unitsThisWeek"`
-	PctComplete      float64  `json:"pctComplete"`
-	ProjectedEndDate *string  `json:"projectedEndDate"`
-	SkillName        string   `json:"skillName"`
-	URL              *string  `json:"url"`
+	ID               string              `json:"id"`
+	Name             string              `json:"name"`
+	UnitType         UnitType            `json:"unitType"`
+	TotalUnits       float64             `json:"totalUnits"`
+	WeeklyUnitGoal   *int                `json:"weeklyUnitGoal"`
+	URL              *string             `json:"url"`
+	Skill            ActiveMaterialSkill `json:"skill"`
+	CompletedUnits   float64             `json:"completedUnits"`
+	UnitsThisWeek    float64             `json:"unitsThisWeek"`
+	PctComplete      float64             `json:"pctComplete"`
+	ProjectedEndDate *string             `json:"projectedEndDate"`
 }
+
+// SkillName convenience accessor.
+func (a ActiveMaterial) SkillName() string { return a.Skill.Name }
 
 // --- skill.getAll ---
+// Actual shape: { id, name, categoryId, color, isArchived, priority,
+//                 category: { id, name, color }, _count: { materials } }
+
+type SkillCategory struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Color *string `json:"color"`
+}
+
+type SkillCount struct {
+	Materials int `json:"materials"`
+}
 
 type Skill struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	CategoryID   string  `json:"categoryId"`
-	CategoryName string  `json:"categoryName"`
-	Color        *string `json:"color"`
-	IsArchived   bool    `json:"isArchived"`
-	Priority     int     `json:"priority"`
+	ID         string        `json:"id"`
+	Name       string        `json:"name"`
+	CategoryID string        `json:"categoryId"`
+	Color      *string       `json:"color"`
+	IsArchived bool          `json:"isArchived"`
+	Priority   int           `json:"priority"`
+	Category   SkillCategory `json:"category"`
+	Count      SkillCount    `json:"_count"`
 }
+
+// CategoryName is a convenience accessor.
+func (s Skill) CategoryName() string { return s.Category.Name }
+
+// MaterialCount is a convenience accessor.
+func (s Skill) MaterialCount() int { return s.Count.Materials }
 
 // --- category.getAll ---
 
-type Category struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	Color      *string `json:"color"`
-	IsArchived bool    `json:"isArchived"`
-	SkillCount int     `json:"skillCount"`
+type CategoryCount struct {
+	Skills int `json:"skills"`
 }
 
+type Category struct {
+	ID         string        `json:"id"`
+	Name       string        `json:"name"`
+	Color      *string       `json:"color"`
+	IsArchived bool          `json:"isArchived"`
+	Count      CategoryCount `json:"_count"`
+}
+
+// SkillCount is a convenience accessor.
+func (c Category) SkillCount() int { return c.Count.Skills }
+
 // --- material.getAll ---
+// Actual shape: { id, name, unitType, totalUnits, completedUnits, status,
+//                 skillId, weeklyUnitGoal, url, startDate, completedDate,
+//                 skill: { id, name, color, category: {...} },
+//                 materialType: { id, name },
+//                 _count: { progressLogs } }
+
+type MaterialSkill struct {
+	ID       string        `json:"id"`
+	Name     string        `json:"name"`
+	Color    *string       `json:"color"`
+	Category SkillCategory `json:"category"`
+}
+
+type MaterialType struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type MaterialCount struct {
+	ProgressLogs int `json:"progressLogs"`
+}
 
 type Material struct {
 	ID             string         `json:"id"`
@@ -127,21 +246,144 @@ type Material struct {
 	CompletedUnits float64        `json:"completedUnits"`
 	Status         MaterialStatus `json:"status"`
 	SkillID        string         `json:"skillId"`
-	SkillName      string         `json:"skillName"`
-	TypeName       string         `json:"typeName"`
+	WeeklyUnitGoal *int           `json:"weeklyUnitGoal"`
 	URL            *string        `json:"url"`
-	StartDate      *string        `json:"startDate"`
-	CompletedDate  *string        `json:"completedDate"`
+	StartDate      *SuperJSONDate `json:"startDate"`
+	CompletedDate  *SuperJSONDate `json:"completedDate"`
+	Skill          MaterialSkill  `json:"skill"`
+	MaterialType   MaterialType   `json:"materialType"`
+	Count          MaterialCount  `json:"_count"`
 }
 
+// SkillName convenience accessor.
+func (m Material) SkillName() string { return m.Skill.Name }
+
+// TypeName convenience accessor.
+func (m Material) TypeName() string { return m.MaterialType.Name }
+
 // --- progress.getAll ---
+// Actual shape: { id, userId, materialId, date, units, notes, createdAt,
+//                 material: { id, name, unitType } }
+
+type ProgressMaterial struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	UnitType UnitType `json:"unitType"`
+}
 
 type ProgressLog struct {
-	ID           string    `json:"id"`
-	MaterialID   string    `json:"materialId"`
-	MaterialName string    `json:"materialName"`
-	Date         string    `json:"date"`
-	Units        float64   `json:"units"`
-	Notes        *string   `json:"notes"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID        string           `json:"id"`
+	Date      SuperJSONDate    `json:"date"`
+	Units     float64          `json:"units"`
+	Notes     *string          `json:"notes"`
+	CreatedAt time.Time        `json:"createdAt"`
+	Material  ProgressMaterial `json:"material"`
+}
+
+// MaterialName convenience accessor.
+func (p ProgressLog) MaterialName() string { return p.Material.Name }
+
+// --- dashboard.getCategoryData ---
+
+type CategorySkillSummary struct {
+	ID                  string  `json:"id"`
+	Name                string  `json:"name"`
+	Color               *string `json:"color"`
+	IsArchived          bool    `json:"isArchived"`
+	MaterialCount       int     `json:"materialCount"`
+	ActiveMaterialCount int     `json:"activeMaterialCount"`
+	CompletedUnits      float64 `json:"completedUnits"`
+	TotalUnits          float64 `json:"totalUnits"`
+}
+
+type CategoryActiveMaterial struct {
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	CompletedUnits float64  `json:"completedUnits"`
+	TotalUnits     float64  `json:"totalUnits"`
+	UnitType       UnitType `json:"unitType"`
+	SkillName      string   `json:"skillName"`
+}
+
+type CategoryDetail struct {
+	Category struct {
+		ID         string  `json:"id"`
+		Name       string  `json:"name"`
+		Color      *string `json:"color"`
+		IsArchived bool    `json:"isArchived"`
+	} `json:"category"`
+	TotalMaterials         int                      `json:"totalMaterials"`
+	ActiveMaterialCount    int                      `json:"activeMaterialCount"`
+	CompletedMaterialCount int                      `json:"completedMaterialCount"`
+	PctCompleted           float64                  `json:"pctCompleted"`
+	PctThisWeek            float64                  `json:"pctThisWeek"`
+	SkillsSummary          []CategorySkillSummary   `json:"skillsSummary"`
+	ActiveMaterials        []CategoryActiveMaterial `json:"activeMaterials"`
+}
+
+// --- dashboard.getSkillData ---
+
+type SkillDetailMaterial struct {
+	ID               string         `json:"id"`
+	Name             string         `json:"name"`
+	Status           MaterialStatus `json:"status"`
+	CompletedUnits   float64        `json:"completedUnits"`
+	TotalUnits       float64        `json:"totalUnits"`
+	UnitType         UnitType       `json:"unitType"`
+	MaterialType     MaterialType   `json:"materialType"`
+	WeeklyUnitGoal   *int           `json:"weeklyUnitGoal"`
+	UnitsThisWeek    float64        `json:"unitsThisWeek"`
+	PctComplete      float64        `json:"pctComplete"`
+	ProjectedEndDate *string        `json:"projectedEndDate"`
+}
+
+type SkillDetail struct {
+	Skill struct {
+		ID         string        `json:"id"`
+		Name       string        `json:"name"`
+		Color      *string       `json:"color"`
+		IsArchived bool          `json:"isArchived"`
+		Category   SkillCategory `json:"category"`
+	} `json:"skill"`
+	TotalMaterials         int                   `json:"totalMaterials"`
+	ActiveMaterialCount    int                   `json:"activeMaterialCount"`
+	CompletedMaterialCount int                   `json:"completedMaterialCount"`
+	PctCompleted           float64               `json:"pctCompleted"`
+	PctThisWeek            float64               `json:"pctThisWeek"`
+	ActiveMaterials        []SkillDetailMaterial `json:"activeMaterials"`
+	AllMaterials           []SkillDetailMaterial `json:"allMaterials"`
+}
+
+// --- dashboard.getMaterialDetail ---
+
+type MaterialDetailLog struct {
+	ID    string        `json:"id"`
+	Date  SuperJSONDate `json:"date"`
+	Units float64       `json:"units"`
+	Notes *string       `json:"notes"`
+}
+
+type MaterialDetailInfo struct {
+	ID               string         `json:"id"`
+	Name             string         `json:"name"`
+	UnitType         UnitType       `json:"unitType"`
+	TotalUnits       float64        `json:"totalUnits"`
+	CompletedUnits   float64        `json:"completedUnits"`
+	UnitsThisWeek    float64        `json:"unitsThisWeek"`
+	PctComplete      float64        `json:"pctComplete"`
+	Status           MaterialStatus `json:"status"`
+	WeeklyUnitGoal   *int           `json:"weeklyUnitGoal"`
+	URL              *string        `json:"url"`
+	Notes            *string        `json:"notes"`
+	StartDate        *SuperJSONDate `json:"startDate"`
+	CompletedDate    *SuperJSONDate `json:"completedDate"`
+	MaterialStreak   int            `json:"materialStreak"`
+	ProjectedEndDate *string        `json:"projectedEndDate"`
+	MaterialType     MaterialType   `json:"materialType"`
+	Skill            MaterialSkill  `json:"skill"`
+}
+
+type MaterialDetail struct {
+	Material     MaterialDetailInfo  `json:"material"`
+	ProgressLogs []MaterialDetailLog `json:"progressLogs"`
 }

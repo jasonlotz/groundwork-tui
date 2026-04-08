@@ -13,7 +13,9 @@ import (
 )
 
 type skillsLoadedMsg struct{ data []model.Skill }
-type errMsg struct{ err error }
+
+// OpenSkillMsg is sent when the user presses enter on the selected skill.
+type OpenSkillMsg struct{ SkillID string }
 
 // Model is the Bubble Tea model for the skills screen.
 type Model struct {
@@ -34,7 +36,7 @@ func load(c *api.Client) tea.Cmd {
 	return func() tea.Msg {
 		data, err := c.GetAllSkills()
 		if err != nil {
-			return errMsg{err}
+			return common.ErrMsg{Err: err}
 		}
 		return skillsLoadedMsg{data}
 	}
@@ -54,8 +56,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.skills = msg.data
 		m.loading = false
 
-	case errMsg:
-		m.err = msg.err
+	case common.ErrMsg:
+		m.err = msg.Err
 		m.loading = false
 
 	case tea.KeyMsg:
@@ -76,6 +78,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			m.err = nil
 			return m, load(m.client)
+		case "enter":
+			if len(m.skills) > 0 {
+				id := m.skills[m.cursor].ID
+				return m, func() tea.Msg { return OpenSkillMsg{SkillID: id} }
+			}
 		}
 	}
 	return m, nil
@@ -83,10 +90,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	if m.loading {
-		return common.MutedStyle.Render("\n  Loading…")
+		return common.LoadingView()
 	}
 	if m.err != nil {
-		return common.DangerStyle.Render("\n  Error: " + m.err.Error() + "\n\n  Press r to retry, esc to go back.")
+		return common.ErrorView(m.err)
 	}
 
 	var b strings.Builder
@@ -96,58 +103,46 @@ func (m Model) View() string {
 	if len(m.skills) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No skills found.\n"))
 	} else {
-		// Group by category
+		// Group by category, preserving encounter order.
 		type group struct {
 			category string
-			skills   []model.Skill
+			indices  []int // indices into m.skills
 		}
 		var groups []group
-		catIdx := map[string]int{}
+		catIdx := map[string]int{} // categoryID → index in groups
 
-		for _, s := range m.skills {
-			if idx, ok := catIdx[s.CategoryID]; ok {
-				groups[idx].skills = append(groups[idx].skills, s)
+		for si, s := range m.skills {
+			if gi, ok := catIdx[s.CategoryID]; ok {
+				groups[gi].indices = append(groups[gi].indices, si)
 			} else {
 				catIdx[s.CategoryID] = len(groups)
-				groups = append(groups, group{category: s.CategoryName, skills: []model.Skill{s}})
+				groups = append(groups, group{category: s.CategoryName(), indices: []int{si}})
 			}
 		}
 
-		// Flatten into display rows to track cursor position
+		// Flatten into display rows; track which row each skill sits at.
 		type row struct {
 			isHeader bool
 			label    string
-			skillIdx int // index into m.skills
+			skillIdx int // index into m.skills (only valid when !isHeader)
 		}
 		var rows []row
-		skillRowIdx := map[int]int{} // m.skills index → rows index
+		// skillToRow[si] = row index for m.skills[si]
+		skillToRow := make([]int, len(m.skills))
 		for _, g := range groups {
 			rows = append(rows, row{isHeader: true, label: g.category})
-			for _, s := range g.skills {
-				// find index in m.skills
-				for si, ms := range m.skills {
-					if ms.ID == s.ID {
-						skillRowIdx[si] = len(rows)
-						break
-					}
-				}
-				rows = append(rows, row{isHeader: false, label: s.Name, skillIdx: func() int {
-					for si, ms := range m.skills {
-						if ms.ID == s.ID {
-							return si
-						}
-					}
-					return 0
-				}()})
+			for _, si := range g.indices {
+				skillToRow[si] = len(rows)
+				rows = append(rows, row{isHeader: false, label: m.skills[si].Name, skillIdx: si})
 			}
 		}
 
-		visibleHeight := m.height - 8
+		// title(1) + marginBottom(1) + blank(1) + count(1) + help(1) + marginTop(1) = 6
+		visibleHeight := m.height - 6
 		if visibleHeight < 5 {
 			visibleHeight = 5
 		}
-		// Determine which rows row to show as selected
-		selectedRow := skillRowIdx[m.cursor]
+		selectedRow := skillToRow[m.cursor]
 		start := 0
 		if selectedRow > visibleHeight/2 {
 			start = selectedRow - visibleHeight/2
@@ -168,7 +163,9 @@ func (m Model) View() string {
 					cursorStr = "  " + common.SelectedStyle.Render("▶ ")
 					nameStyle = common.SelectedStyle
 				}
-				b.WriteString(cursorStr + nameStyle.Render(r.label))
+				s := m.skills[r.skillIdx]
+				matCount := common.MutedStyle.Render(fmt.Sprintf("(%d)", s.MaterialCount()))
+				b.WriteString(cursorStr + nameStyle.Render(r.label) + "  " + matCount)
 			}
 			b.WriteString("\n")
 		}
@@ -181,6 +178,7 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	keys := []string{
 		common.KeyHelp("j/k", "navigate"),
+		common.KeyHelp("enter", "open skill"),
 		common.KeyHelp("r", "refresh"),
 		common.KeyHelp("esc", "back"),
 	}

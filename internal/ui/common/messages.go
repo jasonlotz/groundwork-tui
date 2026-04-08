@@ -8,3 +8,6 @@ type ToastMsg struct {
 	Text    string
 	IsError bool
 }
+
+// ErrMsg wraps an error for use as a Bubble Tea message.
+type ErrMsg struct{ Err error }

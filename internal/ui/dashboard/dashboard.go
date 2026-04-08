@@ -20,14 +20,17 @@ const (
 	ScreenMaterials   NavigateMsg = "materials"
 	ScreenSkills      NavigateMsg = "skills"
 	ScreenProgress    NavigateMsg = "progress"
+	ScreenCategories  NavigateMsg = "categories"
 	ScreenLogProgress NavigateMsg = "log"
 )
+
+// OpenMaterialMsg is sent when the user presses enter on an active material.
+type OpenMaterialMsg struct{ MaterialID string }
 
 // --- messages ---
 
 type overviewLoadedMsg struct{ data *model.Overview }
 type activeMaterialsLoadedMsg struct{ data []model.ActiveMaterial }
-type errMsg struct{ err error }
 
 // --- model ---
 
@@ -60,7 +63,7 @@ func loadOverview(c *api.Client) tea.Cmd {
 	return func() tea.Msg {
 		data, err := c.GetOverview()
 		if err != nil {
-			return errMsg{err}
+			return common.ErrMsg{Err: err}
 		}
 		return overviewLoadedMsg{data}
 	}
@@ -70,7 +73,7 @@ func loadActiveMaterials(c *api.Client) tea.Cmd {
 	return func() tea.Msg {
 		data, err := c.GetActiveMaterials()
 		if err != nil {
-			return errMsg{err}
+			return common.ErrMsg{Err: err}
 		}
 		return activeMaterialsLoadedMsg{data}
 	}
@@ -89,8 +92,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeMaterials = msg.data
 		m.loading = false
 
-	case errMsg:
-		m.err = msg.err
+	case common.ErrMsg:
+		m.err = msg.Err
 		m.loading = false
 
 	case tea.KeyMsg:
@@ -109,12 +112,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			}
+		case "enter":
+			if len(m.activeMaterials) > 0 {
+				id := m.activeMaterials[m.cursor].ID
+				return m, func() tea.Msg { return OpenMaterialMsg{MaterialID: id} }
+			}
 		case "m":
 			return m, func() tea.Msg { return ScreenMaterials }
 		case "s":
 			return m, func() tea.Msg { return ScreenSkills }
 		case "p":
 			return m, func() tea.Msg { return ScreenProgress }
+		case "c":
+			return m, func() tea.Msg { return ScreenCategories }
 		case "l":
 			return m, func() tea.Msg { return ScreenLogProgress }
 		}
@@ -124,7 +134,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	if m.loading {
-		return common.MutedStyle.Render("\n  Loading…")
+		return common.LoadingView()
 	}
 	if m.err != nil {
 		return common.DangerStyle.Render("\n  Error: " + m.err.Error() + "\n\n  Press r to retry, q to quit.")
@@ -175,12 +185,7 @@ func (m Model) renderKPIs() string {
 		common.StatCard("Progress", fmt.Sprintf("%.0f%%", o.CompletionPct)),
 		common.StatCard("Streak", streak),
 	}
-
-	rendered := make([]string, len(cards))
-	for i, c := range cards {
-		rendered[i] = common.BorderStyle.Render(c)
-	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
+	return common.RenderKPICards(cards)
 }
 
 func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
@@ -221,7 +226,7 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 	}
 
 	name := style.Render(mat.Name)
-	skill := common.MutedStyle.Render(mat.SkillName)
+	skill := common.MutedStyle.Render(mat.SkillName())
 
 	line1 := cursor + name + "  " + common.MutedStyle.Render(skill)
 	line2 := "    " + bar + "  " + common.MutedStyle.Render(units) + weeklyInfo + projInfo
@@ -232,10 +237,12 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 func (m Model) renderHelp() string {
 	keys := []string{
 		common.KeyHelp("j/k", "navigate"),
-		common.KeyHelp("l", "log progress"),
-		common.KeyHelp("m", "materials"),
+		common.KeyHelp("enter", "detail"),
+		common.KeyHelp("c", "categories"),
 		common.KeyHelp("s", "skills"),
+		common.KeyHelp("m", "materials"),
 		common.KeyHelp("p", "progress log"),
+		common.KeyHelp("l", "log progress"),
 		common.KeyHelp("r", "refresh"),
 		common.KeyHelp("q", "quit"),
 	}

@@ -1,5 +1,5 @@
-// Package progress provides the progress log history TUI screen.
-package progress
+// Package categories provides the categories list TUI screen.
+package categories
 
 import (
 	"fmt"
@@ -12,17 +12,20 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
 )
 
-type logsLoadedMsg struct{ data []model.ProgressLog }
+type categoriesLoadedMsg struct{ data []model.Category }
 
-// Model is the Bubble Tea model for the progress history screen.
+// OpenCategoryMsg is sent when the user presses enter on a category.
+type OpenCategoryMsg struct{ CategoryID string }
+
+// Model is the Bubble Tea model for the categories list screen.
 type Model struct {
-	client  *api.Client
-	logs    []model.ProgressLog
-	cursor  int
-	loading bool
-	err     error
-	width   int
-	height  int
+	client     *api.Client
+	categories []model.Category
+	cursor     int
+	loading    bool
+	err        error
+	width      int
+	height     int
 }
 
 func New(client *api.Client) Model {
@@ -31,11 +34,11 @@ func New(client *api.Client) Model {
 
 func load(c *api.Client) tea.Cmd {
 	return func() tea.Msg {
-		data, err := c.GetAllProgress(nil)
+		data, err := c.GetAllCategories()
 		if err != nil {
 			return common.ErrMsg{Err: err}
 		}
-		return logsLoadedMsg{data}
+		return categoriesLoadedMsg{data}
 	}
 }
 
@@ -49,8 +52,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case logsLoadedMsg:
-		m.logs = msg.data
+	case categoriesLoadedMsg:
+		m.categories = msg.data
 		m.loading = false
 
 	case common.ErrMsg:
@@ -64,12 +67,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "j", "down":
-			if m.cursor < len(m.logs)-1 {
+			if m.cursor < len(m.categories)-1 {
 				m.cursor++
 			}
 		case "k", "up":
 			if m.cursor > 0 {
 				m.cursor--
+			}
+		case "enter":
+			if len(m.categories) > 0 {
+				id := m.categories[m.cursor].ID
+				return m, func() tea.Msg { return OpenCategoryMsg{CategoryID: id} }
 			}
 		case "r":
 			m.loading = true
@@ -89,33 +97,26 @@ func (m Model) View() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(common.TitleStyle.Render("Progress Log"))
+	b.WriteString(common.TitleStyle.Render("Categories"))
 	b.WriteString("\n")
 
-	if len(m.logs) == 0 {
-		b.WriteString(common.MutedStyle.Render("  No progress entries yet.\n"))
+	if len(m.categories) == 0 {
+		b.WriteString(common.MutedStyle.Render("  No categories found.\n"))
 	} else {
-		// title(1) + marginBottom(1) + header(1) + blank(1) + help(1) + marginTop(1) = 6
 		visibleHeight := m.height - 6
 		if visibleHeight < 5 {
 			visibleHeight = 5
 		}
-		start, end := common.VisibleWindow(m.cursor, len(m.logs), visibleHeight)
-
-		// Header
-		dateHdr := common.MutedStyle.Copy().Width(12).Render("Date")
-		nameHdr := common.MutedStyle.Copy().Width(30).Render("Material")
-		unitsHdr := common.MutedStyle.Render("Units")
-		b.WriteString("  " + dateHdr + " " + nameHdr + " " + unitsHdr + "\n")
+		start, end := common.VisibleWindow(m.cursor, len(m.categories), visibleHeight)
 
 		for i := start; i < end; i++ {
 			b.WriteString(m.renderRow(i))
 			b.WriteString("\n")
 		}
 
-		if len(m.logs) > visibleHeight {
+		if len(m.categories) > visibleHeight {
 			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
-				"\n  %d–%d of %d entries\n", start+1, end, len(m.logs),
+				"  %d–%d of %d\n", start+1, end, len(m.categories),
 			)))
 		}
 	}
@@ -123,6 +124,7 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	keys := []string{
 		common.KeyHelp("j/k", "navigate"),
+		common.KeyHelp("enter", "open"),
 		common.KeyHelp("r", "refresh"),
 		common.KeyHelp("esc", "back"),
 	}
@@ -131,8 +133,7 @@ func (m Model) View() string {
 }
 
 func (m Model) renderRow(i int) string {
-	log := m.logs[i]
-
+	cat := m.categories[i]
 	cursorStr := "  "
 	nameStyle := common.MutedStyle
 	if i == m.cursor {
@@ -140,13 +141,13 @@ func (m Model) renderRow(i int) string {
 		nameStyle = common.SelectedStyle
 	}
 
-	units := fmt.Sprintf("%.4g %s", log.Units, log.Material.UnitType.Label())
-	name := common.Truncate(log.MaterialName(), 28)
+	archived := ""
+	if cat.IsArchived {
+		archived = "  " + common.MutedStyle.Render("[archived]")
+	}
 
-	// Use lipgloss Width() for columns so ANSI codes don't break alignment.
-	dateCol := common.MutedStyle.Copy().Width(12).Render(log.Date.Value)
-	nameCol := nameStyle.Copy().Width(30).Render(name)
-	unitsCol := common.StatValueStyle.Render(units)
+	skillCount := common.MutedStyle.Render(fmt.Sprintf("(%d skills)", cat.SkillCount()))
+	name := nameStyle.Render(common.Truncate(cat.Name, 30))
 
-	return cursorStr + dateCol + " " + nameCol + " " + unitsCol
+	return cursorStr + name + "  " + skillCount + archived
 }

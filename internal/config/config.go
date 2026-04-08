@@ -25,13 +25,15 @@ type Config struct {
 // DefaultBaseURL is the production Groundwork instance.
 const DefaultBaseURL = "https://groundwork.lotztech.com"
 
-// configDir returns the platform config directory for this app.
+// configDir returns ~/.config/groundwork-tui, creating it if needed.
+// We use ~/.config explicitly (XDG convention) rather than os.UserConfigDir()
+// which returns ~/Library/Application Support on macOS.
 func configDir() (string, error) {
-	base, err := os.UserConfigDir()
+	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("cannot determine config directory: %w", err)
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}
-	return filepath.Join(base, appName), nil
+	return filepath.Join(home, ".config", appName), nil
 }
 
 // Path returns the full path to the config file.

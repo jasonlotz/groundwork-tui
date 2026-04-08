@@ -44,7 +44,7 @@ func NewLogForm(client *api.Client, activeMaterials []model.ActiveMaterial) LogF
 	// Build material options for the select field.
 	matOptions := make([]huh.Option[string], 0, len(activeMaterials))
 	for _, m := range activeMaterials {
-		label := fmt.Sprintf("%-30s  %s", truncate(m.Name, 30), m.SkillName)
+		label := fmt.Sprintf("%-30s  %s", common.Truncate(m.Name, 30), m.SkillName())
 		matOptions = append(matOptions, huh.NewOption(label, m.ID))
 	}
 	if len(matOptions) > 0 {
@@ -124,4 +124,14 @@ func (lf LogForm) submit() tea.Cmd {
 
 func (lf LogForm) View() string {
 	return lf.form.View()
+}
+
+// PreSelectMaterial sets the selected material ID if it exists in the materials list.
+func (lf *LogForm) PreSelectMaterial(materialID string) {
+	for _, m := range lf.materials {
+		if m.ID == materialID {
+			lf.materialID = materialID
+			return
+		}
+	}
 }
