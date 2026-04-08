@@ -4,6 +4,7 @@ package dashboard
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
@@ -19,15 +20,20 @@ import (
 type NavigateMsg string
 
 const (
-	ScreenMaterials   NavigateMsg = "materials"
-	ScreenSkills      NavigateMsg = "skills"
-	ScreenProgress    NavigateMsg = "progress"
-	ScreenCategories  NavigateMsg = "categories"
-	ScreenLogProgress NavigateMsg = "log"
+	ScreenMaterials  NavigateMsg = "materials"
+	ScreenSkills     NavigateMsg = "skills"
+	ScreenProgress   NavigateMsg = "progress"
+	ScreenCategories NavigateMsg = "categories"
 )
 
 // OpenMaterialMsg is sent when the user presses enter on an active material.
 type OpenMaterialMsg struct{ MaterialID string }
+
+// LogFromDashboardMsg is sent when the user presses l on an active material.
+type LogFromDashboardMsg struct {
+	MaterialID   string
+	MaterialName string
+}
 
 // --- messages ---
 
@@ -61,11 +67,11 @@ func New(client *api.Client) Model {
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "detail"),
+			common.KB("l", "log progress"),
 			common.KB("c", "categories"),
 			common.KB("s", "skills"),
 			common.KB("m", "materials"),
 			common.KB("p", "progress log"),
-			common.KB("l", "log progress"),
 			common.KB("r", "refresh"),
 			common.KB("q", "quit"),
 		}},
@@ -153,7 +159,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "c":
 			return m, func() tea.Msg { return ScreenCategories }
 		case "l":
-			return m, func() tea.Msg { return ScreenLogProgress }
+			if len(m.activeMaterials) > 0 {
+				mat := m.activeMaterials[m.cursor]
+				return m, func() tea.Msg {
+					return LogFromDashboardMsg{MaterialID: mat.ID, MaterialName: mat.Name}
+				}
+			}
 		}
 	}
 	return m, nil
@@ -186,10 +197,10 @@ func (m Model) View() string {
 	if len(m.activeMaterials) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No active materials.\n"))
 	} else {
-		// title(2) + blank(1) + kpis(3) + section(2) + help(2) = 10; each item is 2 lines
-		visibleItems := (m.height - 10) / 2
-		if visibleItems < 3 {
-			visibleItems = 3
+		// title(2) + blank(1) + kpis(3) + section(2) + help(2) = 10; each item is 4 lines
+		visibleItems := (m.height - 10) / 4
+		if visibleItems < 2 {
+			visibleItems = 2
 		}
 		start, end := common.VisibleWindow(m.cursor, len(m.activeMaterials), visibleItems)
 		for i := start; i < end; i++ {
@@ -227,53 +238,77 @@ func (m Model) renderKPIs() string {
 }
 
 func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
+	selected := i == m.cursor
 	cursor := "  "
-	style := common.DefaultNameStyle
-	if i == m.cursor {
+	if selected {
 		cursor = common.SelectedStyle.Render("▶ ")
-		style = common.SelectedStyle
 	}
 
-	// Progress bar (20 chars wide)
-	pct := 0.0
-	if mat.TotalUnits > 0 {
-		pct = mat.CompletedUnits / mat.TotalUnits
+	skillColor := ""
+	if mat.Skill.Color != nil {
+		skillColor = *mat.Skill.Color
 	}
-	bar := common.RenderBar(m.bar, pct)
+	dot := common.ColorDot(skillColor)
 
-	// Units info
-	units := fmt.Sprintf("%.0f / %.0f %s", mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label())
+	nameStyle := common.DefaultNameStyle
+	if selected {
+		nameStyle = common.SelectedStyle
+	}
+	skill := common.MutedStyle.Render(common.Truncate(mat.SkillName(), 18))
+	name := nameStyle.Render(common.Truncate(mat.Name, 36))
+	pctLabel := common.MutedStyle.Render(fmt.Sprintf("%.0f%%", mat.PctComplete))
+	line1 := cursor + dot + " " + name + "  " + skill + "  " + pctLabel
 
-	// Weekly goal
-	weeklyInfo := ""
+	// Bar width: terminal width minus indent(4) minus some right margin.
+	barWidth := m.width - 30
+	if barWidth < 20 {
+		barWidth = 20
+	}
+	if barWidth > 60 {
+		barWidth = 60
+	}
+
+	// Day-of-week pace: Mon=1/7 … Sun=7/7 (matches web app logic).
+	pacePct := paceFraction()
+
+	// Line 2: weekly goal bar (or blank spacer if no goal).
+	var line2 string
 	if mat.WeeklyUnitGoal != nil && *mat.WeeklyUnitGoal > 0 {
 		weeklyPct := mat.UnitsThisWeek / float64(*mat.WeeklyUnitGoal)
-		weekColor := common.SuccessStyle
-		if weeklyPct < 0.5 {
-			weekColor = common.DangerStyle
-		} else if weeklyPct < 1.0 {
-			weekColor = common.WarningStyle
+		bar := common.RenderWeeklyBar(barWidth, weeklyPct, pacePct)
+		label := fmt.Sprintf("%.4g / %d %s this week",
+			mat.UnitsThisWeek, *mat.WeeklyUnitGoal, mat.UnitType.Label())
+		if mat.ProjectedEndDate != nil {
+			label += common.MutedStyle.Render("  · est. " + common.FormatProjectedDate(*mat.ProjectedEndDate))
 		}
-		weeklyInfo = "  " + weekColor.Render(fmt.Sprintf("%.0f/%d this week", mat.UnitsThisWeek, *mat.WeeklyUnitGoal))
+		line2 = "    " + bar + "  " + common.MutedStyle.Render(label)
+	} else {
+		// No goal — show a dim placeholder so row height stays consistent.
+		line2 = "    " + common.MutedStyle.Render("no weekly goal set")
 	}
 
-	// Projected end
-	projInfo := ""
-	if mat.ProjectedEndDate != nil {
-		projInfo = common.MutedStyle.Render("  est. " + *mat.ProjectedEndDate)
+	// Line 3: overall progress bar.
+	overallPct := 0.0
+	if mat.TotalUnits > 0 {
+		overallPct = mat.CompletedUnits / mat.TotalUnits
 	}
+	overallBar := common.RenderBar(m.bar, overallPct, barWidth)
+	overallLabel := fmt.Sprintf("%.4g / %.4g %s overall",
+		mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label())
+	line3 := "    " + overallBar + "  " + common.MutedStyle.Render(overallLabel)
 
-	name := style.Render(mat.Name)
-	dot := common.ColorDot(func() string {
-		if mat.Skill.Color != nil {
-			return *mat.Skill.Color
-		}
-		return ""
-	}())
-	skill := common.MutedStyle.Render(mat.SkillName())
+	return line1 + "\n" + line2 + "\n" + line3 + "\n"
+}
 
-	line1 := cursor + name + "  " + dot + " " + common.MutedStyle.Render(skill)
-	line2 := "    " + bar + "  " + common.MutedStyle.Render(units) + weeklyInfo + projInfo
-
-	return line1 + "\n" + line2
+// paceFraction returns the expected weekly progress fraction based on the current day.
+// Mon=1/7, Tue=2/7, … Sun=7/7.
+func paceFraction() float64 {
+	// time.Weekday: Sun=0, Mon=1, …, Sat=6
+	// We want Mon=1 … Sun=7.
+	dayOfWeek := int(time.Now().Weekday())
+	dayIndex := dayOfWeek
+	if dayIndex == 0 {
+		dayIndex = 7
+	}
+	return float64(dayIndex) / 7.0
 }

@@ -4,6 +4,7 @@ package materialdetail
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
@@ -21,7 +22,10 @@ import (
 type dataLoadedMsg struct{ data *model.MaterialDetail }
 
 // LogFromDetailMsg is sent when the user presses l to log progress.
-type LogFromDetailMsg struct{ MaterialID string }
+type LogFromDetailMsg struct {
+	MaterialID   string
+	MaterialName string
+}
 
 // Model is the Bubble Tea model for the material detail screen.
 type Model struct {
@@ -107,7 +111,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "l":
 			if m.data != nil && m.data.Material.Status == model.StatusActive {
 				id := m.materialID
-				return m, func() tea.Msg { return LogFromDetailMsg{MaterialID: id} }
+				name := m.data.Material.Name
+				return m, func() tea.Msg { return LogFromDetailMsg{MaterialID: id, MaterialName: name} }
 			}
 			if m.data != nil && m.data.Material.Status != model.StatusActive {
 				return m, func() tea.Msg {
@@ -137,8 +142,21 @@ func (m Model) View() string {
 	mat := m.data.Material
 	var b strings.Builder
 
-	// Title + breadcrumb
-	crumb := common.MutedStyle.Render(mat.Skill.Category.Name + " › " + mat.Skill.Name + " › ")
+	// Title + breadcrumb with colored dots
+	catDot := common.ColorDot(func() string {
+		if mat.Skill.Category.Color != nil {
+			return *mat.Skill.Category.Color
+		}
+		return ""
+	}())
+	skillDot := common.ColorDot(func() string {
+		if mat.Skill.Color != nil {
+			return *mat.Skill.Color
+		}
+		return ""
+	}())
+	crumb := catDot + " " + common.MutedStyle.Render(mat.Skill.Category.Name+" › ") +
+		skillDot + " " + common.MutedStyle.Render(mat.Skill.Name+" › ")
 	b.WriteString(common.RenderTitle(crumb+mat.Name, m.width))
 	b.WriteString("\n")
 
@@ -162,12 +180,36 @@ func (m Model) View() string {
 	b.WriteString(common.RenderKPICards(cards))
 	b.WriteString("\n")
 
-	// Overall progress bar
+	// Bar width: match dashboard sizing.
+	barWidth := m.width - 30
+	if barWidth < 20 {
+		barWidth = 20
+	}
+	if barWidth > 60 {
+		barWidth = 60
+	}
+
+	// Weekly goal bar (only when a goal is set).
+	if mat.WeeklyUnitGoal != nil && *mat.WeeklyUnitGoal > 0 {
+		pacePct := paceFraction()
+		weeklyPct := mat.UnitsThisWeek / float64(*mat.WeeklyUnitGoal)
+		weeklyBar := common.RenderWeeklyBar(barWidth, weeklyPct, pacePct)
+		weeklyLabel := fmt.Sprintf("%.4g / %d %s this week",
+			mat.UnitsThisWeek, *mat.WeeklyUnitGoal, mat.UnitType.Label())
+		if mat.ProjectedEndDate != nil {
+			weeklyLabel += common.MutedStyle.Render("  · est. " + common.FormatProjectedDate(*mat.ProjectedEndDate))
+		}
+		b.WriteString("  " + weeklyBar + "  " + common.MutedStyle.Render(weeklyLabel) + "\n")
+	}
+
+	// Overall progress bar.
 	pct := 0.0
 	if mat.TotalUnits > 0 {
 		pct = mat.CompletedUnits / mat.TotalUnits
 	}
-	b.WriteString("  " + common.RenderBar(m.bar, pct) + "\n")
+	overallLabel := fmt.Sprintf("%.4g / %.4g %s overall",
+		mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label())
+	b.WriteString("  " + common.RenderBar(m.bar, pct, barWidth) + "  " + common.MutedStyle.Render(overallLabel) + "\n")
 
 	// Meta info
 	metaLines := []string{}
@@ -176,7 +218,7 @@ func (m Model) View() string {
 		metaLines = append(metaLines, fmt.Sprintf("  Goal: %s", common.MutedStyle.Render(fmt.Sprintf("%d %s/week", *mat.WeeklyUnitGoal, mat.UnitType.Label()))))
 	}
 	if mat.ProjectedEndDate != nil {
-		metaLines = append(metaLines, fmt.Sprintf("  Est. completion: %s", common.MutedStyle.Render(*mat.ProjectedEndDate)))
+		metaLines = append(metaLines, fmt.Sprintf("  Est. completion: %s", common.MutedStyle.Render(common.FormatProjectedDate(*mat.ProjectedEndDate))))
 	}
 	if mat.StartDate != nil && mat.StartDate.Value != "" {
 		metaLines = append(metaLines, fmt.Sprintf("  Started: %s", common.MutedStyle.Render(mat.StartDate.Value)))
@@ -198,8 +240,8 @@ func (m Model) View() string {
 		b.WriteString(common.SectionStyle.Render("Progress Log"))
 		b.WriteString("\n")
 
-		// title(2)+kpis(3)+bar(1)+meta(~4)+section(2)+table header(1)+separator(1)+help(2) = ~15
-		usedLines := 15 + len(metaLines)
+		// title(2)+kpis(3)+bars(~2)+meta(~4)+section(2)+table header(1)+separator(1)+help(2) = ~16
+		usedLines := 16 + len(metaLines)
 		visibleHeight := m.height - usedLines
 		if visibleHeight < 3 {
 			visibleHeight = 3
@@ -251,4 +293,15 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
 	return b.String()
+}
+
+// paceFraction returns the expected weekly progress fraction based on the current day.
+// Mon=1/7, Tue=2/7, … Sun=7/7.
+func paceFraction() float64 {
+	dayOfWeek := int(time.Now().Weekday())
+	dayIndex := dayOfWeek
+	if dayIndex == 0 {
+		dayIndex = 7
+	}
+	return float64(dayIndex) / 7.0
 }

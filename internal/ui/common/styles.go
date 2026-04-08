@@ -4,6 +4,7 @@ package common
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/lipgloss"
@@ -132,13 +133,17 @@ func NewProgressBar(width int) progress.Model {
 }
 
 // RenderBar renders a progress bar for the given percentage (0.0–1.0) using ViewAs.
+// width overrides the bar's width if > 0; pass 0 to use the model's existing width.
 // This is a stateless render — no animation state required.
-func RenderBar(p progress.Model, pct float64) string {
+func RenderBar(p progress.Model, pct float64, width int) string {
 	if pct < 0 {
 		pct = 0
 	}
 	if pct > 1 {
 		pct = 1
+	}
+	if width > 0 {
+		p.Width = width
 	}
 	return p.ViewAs(pct)
 }
@@ -199,4 +204,51 @@ func StatCard(label, value string) string {
 func KeyHelp(key, desc string) string {
 	k := lipgloss.NewStyle().Foreground(ColorHighlight).Render(key)
 	return k + "  " + MutedStyle.Render(desc)
+}
+
+// FormatProjectedDate parses a "YYYY-MM-DD" projected end date string and
+// returns it in "Jan 2, 2006" format (e.g. "Mar 23, 2026").
+// Returns the original string unchanged if parsing fails.
+func FormatProjectedDate(s string) string {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return s
+	}
+	return t.Format("Jan 2, 2006")
+}
+
+// RenderWeeklyBar renders a fixed-width bar for weekly goal progress.
+// pct is the fill fraction (0.0–1.0), pacePct is where the pace tick falls (0.0–1.0).
+// The bar color is green/yellow/red based on whether pct is ahead of, near, or behind pace.
+func RenderWeeklyBar(width int, pct, pacePct float64) string {
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 1 {
+		pct = 1
+	}
+
+	// Choose color based on pace comparison (matches web app thresholds).
+	var fillStyle lipgloss.Style
+	switch {
+	case pct >= pacePct:
+		fillStyle = lipgloss.NewStyle().Foreground(ColorSuccess)
+	case pct >= pacePct-0.20:
+		fillStyle = lipgloss.NewStyle().Foreground(ColorWarning)
+	default:
+		fillStyle = lipgloss.NewStyle().Foreground(ColorDanger)
+	}
+	emptyStyle := lipgloss.NewStyle().Foreground(ColorBorder)
+
+	filled := int(pct * float64(width))
+
+	var buf strings.Builder
+	for i := range width {
+		if i < filled {
+			buf.WriteString(fillStyle.Render("█"))
+		} else {
+			buf.WriteString(emptyStyle.Render("░"))
+		}
+	}
+	return buf.String()
 }

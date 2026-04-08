@@ -23,7 +23,10 @@ type dataLoadedMsg struct{ data *model.SkillDetail }
 type OpenMaterialMsg struct{ MaterialID string }
 
 // LogFromSkillMsg is sent when the user presses l on a material.
-type LogFromSkillMsg struct{ MaterialID string }
+type LogFromSkillMsg struct {
+	MaterialID   string
+	MaterialName string
+}
 
 // Model is the Bubble Tea model for the skill detail screen.
 type Model struct {
@@ -116,8 +119,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.data != nil && len(m.data.AllMaterials) > 0 {
 				mat := m.data.AllMaterials[m.cursor]
 				if mat.Status == model.StatusActive {
-					id := mat.ID
-					return m, func() tea.Msg { return LogFromSkillMsg{MaterialID: id} }
+					return m, func() tea.Msg {
+						return LogFromSkillMsg{MaterialID: mat.ID, MaterialName: mat.Name}
+					}
 				}
 				return m, func() tea.Msg {
 					return common.ToastMsg{Text: "Only active materials can be logged.", IsError: true}
@@ -182,7 +186,7 @@ func (m Model) View() string {
 
 		selectedIdx := m.cursor - start
 		t := table.New().
-			Headers("", "Material", "Status", "Progress", "Type").
+			Headers("", "Material", "Status", "Progress", "Skill").
 			Rows(rows...).
 			Border(lipgloss.HiddenBorder()).
 			BorderHeader(true).
@@ -221,12 +225,11 @@ func (m Model) buildMaterialRow(i int) []string {
 		cursor = common.SelectedStyle.Render("▶")
 	}
 
-	dot := common.ColorDot(func() string {
-		if m.data.Skill.Color != nil {
-			return *m.data.Skill.Color
-		}
-		return ""
-	}())
+	skillColor := ""
+	if m.data.Skill.Color != nil {
+		skillColor = *m.data.Skill.Color
+	}
+	dot := common.ColorDot(skillColor)
 
 	nameStyle := common.TableCellStyle
 	switch {
@@ -255,9 +258,9 @@ func (m Model) buildMaterialRow(i int) []string {
 	if mat.TotalUnits > 0 {
 		pct = mat.CompletedUnits / mat.TotalUnits
 	}
-	bar := common.RenderBar(m.bar, pct)
+	bar := common.RenderBar(m.bar, pct, 0)
 
-	typeName := common.Truncate(mat.MaterialType.Name, 14)
+	skillCol := common.ColoredName(skillColor, common.Truncate(m.data.Skill.Name, 14), common.TableCellStyle)
 
-	return []string{cursor, name, status, bar, typeName}
+	return []string{cursor, name, status, bar, skillCol}
 }

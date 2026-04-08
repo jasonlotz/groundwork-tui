@@ -179,12 +179,11 @@ func (m Model) buildRow(i int) []string {
 		cursor = common.SelectedStyle.Render("▶")
 	}
 
-	dot := common.ColorDot(func() string {
-		if cat.Color != nil {
-			return *cat.Color
-		}
-		return ""
-	}())
+	colorClass := ""
+	if cat.Color != nil {
+		colorClass = *cat.Color
+	}
+	dot := common.ColorDot(colorClass)
 
 	nameStyle := common.TableCellStyle
 	switch {
@@ -193,7 +192,7 @@ func (m Model) buildRow(i int) []string {
 	case cat.IsArchived:
 		nameStyle = common.ArchivedNameStyle
 	}
-	name := nameStyle.Render(common.Truncate(cat.Name, 30))
+	name := common.ColoredName(colorClass, common.Truncate(cat.Name, 30), nameStyle)
 
 	skillCount := fmt.Sprintf("%d", cat.SkillCount())
 

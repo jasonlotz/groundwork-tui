@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/huh"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
-	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
 )
 
@@ -19,48 +18,34 @@ type LogDoneMsg struct{ Cancelled bool }
 
 // LogForm is a Bubble Tea model for the log-progress huh form.
 type LogForm struct {
-	client    *api.Client
-	materials []model.ActiveMaterial
-	form      *huh.Form
+	client       *api.Client
+	materialID   string
+	materialName string
+	form         *huh.Form
 
 	// bound form values
-	materialID string
-	dateStr    string
-	unitsStr   string
-	notes      string
+	dateStr  string
+	unitsStr string
+	notes    string
 }
 
-// NewLogForm creates a log-progress form pre-populated with active materials.
-func NewLogForm(client *api.Client, activeMaterials []model.ActiveMaterial) LogForm {
+// NewLogForm creates a log-progress form pre-selected on the given material.
+func NewLogForm(client *api.Client, materialID, materialName string) LogForm {
 	today := time.Now().Format("2006-01-02")
 
 	lf := LogForm{
-		client:    client,
-		materials: activeMaterials,
-		dateStr:   today,
-		unitsStr:  "",
-	}
-
-	// Build material options for the select field.
-	matOptions := make([]huh.Option[string], 0, len(activeMaterials))
-	for _, m := range activeMaterials {
-		label := fmt.Sprintf("%-30s  %s", common.Truncate(m.Name, 30), m.SkillName())
-		matOptions = append(matOptions, huh.NewOption(label, m.ID))
-	}
-	if len(matOptions) > 0 {
-		lf.materialID = activeMaterials[0].ID
+		client:       client,
+		materialID:   materialID,
+		materialName: materialName,
+		dateStr:      today,
+		unitsStr:     "",
 	}
 
 	lf.form = huh.NewForm(
 		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Material").
-				Options(matOptions...).
-				Value(&lf.materialID),
-
 			huh.NewInput().
-				Title("Date").
-				Description("YYYY-MM-DD").
+				Title(fmt.Sprintf("Log progress — %s", common.Truncate(materialName, 40))).
+				Description("Date (YYYY-MM-DD)").
 				Placeholder(today).
 				Value(&lf.dateStr),
 
@@ -124,14 +109,4 @@ func (lf LogForm) submit() tea.Cmd {
 
 func (lf LogForm) View() string {
 	return lf.form.View()
-}
-
-// PreSelectMaterial sets the selected material ID if it exists in the materials list.
-func (lf *LogForm) PreSelectMaterial(materialID string) {
-	for _, m := range lf.materials {
-		if m.ID == materialID {
-			lf.materialID = materialID
-			return
-		}
-	}
 }

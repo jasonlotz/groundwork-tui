@@ -18,7 +18,10 @@ import (
 type materialsLoadedMsg struct{ data []model.Material }
 
 // LogFromMaterialMsg is sent when the user presses l to log progress on the selected material.
-type LogFromMaterialMsg struct{ MaterialID string }
+type LogFromMaterialMsg struct {
+	MaterialID   string
+	MaterialName string
+}
 
 // OpenMaterialMsg is sent when the user presses enter on the selected material.
 type OpenMaterialMsg struct{ MaterialID string }
@@ -121,8 +124,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.filtered) > 0 {
 				mat := m.filtered[m.cursor]
 				if mat.Status == model.StatusActive {
-					id := mat.ID
-					return m, func() tea.Msg { return LogFromMaterialMsg{MaterialID: id} }
+					return m, func() tea.Msg {
+						return LogFromMaterialMsg{MaterialID: mat.ID, MaterialName: mat.Name}
+					}
 				}
 				return m, func() tea.Msg {
 					return common.ToastMsg{Text: "Only active materials can be logged.", IsError: true}
@@ -209,7 +213,7 @@ func (m Model) renderRow(i int) string {
 	if mat.TotalUnits > 0 {
 		pct = mat.CompletedUnits / mat.TotalUnits
 	}
-	bar := common.RenderBar(m.bar, pct)
+	bar := common.RenderBar(m.bar, pct, 0)
 	progressText := common.MutedStyle.Render(fmt.Sprintf(
 		"%.4g / %.4g %s", mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label(),
 	))

@@ -128,6 +128,7 @@ func (m Model) View() string {
 		// Group by category, preserving encounter order.
 		type group struct {
 			category string
+			catColor string
 			indices  []int // indices into m.skills
 		}
 		var groups []group
@@ -138,7 +139,11 @@ func (m Model) View() string {
 				groups[gi].indices = append(groups[gi].indices, si)
 			} else {
 				catIdx[s.CategoryID] = len(groups)
-				groups = append(groups, group{category: s.CategoryName(), indices: []int{si}})
+				catColor := ""
+				if s.Category.Color != nil {
+					catColor = *s.Category.Color
+				}
+				groups = append(groups, group{category: s.CategoryName(), catColor: catColor, indices: []int{si}})
 			}
 		}
 
@@ -146,13 +151,14 @@ func (m Model) View() string {
 		type row struct {
 			isHeader bool
 			label    string
-			skillIdx int // index into m.skills (only valid when !isHeader)
+			catColor string // only valid when isHeader
+			skillIdx int    // index into m.skills (only valid when !isHeader)
 		}
 		var rows []row
 		// skillToRow[si] = row index for m.skills[si]
 		skillToRow := make([]int, len(m.skills))
 		for _, g := range groups {
-			rows = append(rows, row{isHeader: true, label: g.category})
+			rows = append(rows, row{isHeader: true, label: g.category, catColor: g.catColor})
 			for _, si := range g.indices {
 				skillToRow[si] = len(rows)
 				rows = append(rows, row{isHeader: false, label: m.skills[si].Name, skillIdx: si})
@@ -177,7 +183,8 @@ func (m Model) View() string {
 		for ri := start; ri < end; ri++ {
 			r := rows[ri]
 			if r.isHeader {
-				b.WriteString(common.SectionStyle.Render("  " + r.label))
+				catDot := common.ColorDot(r.catColor)
+				b.WriteString(common.SectionStyle.Render("  " + catDot + " " + common.ColoredName(r.catColor, r.label, common.SectionStyle)))
 			} else {
 				cursorStr := "    "
 				nameStyle := common.MutedStyle
@@ -187,13 +194,12 @@ func (m Model) View() string {
 				}
 				s := m.skills[r.skillIdx]
 				matCount := common.MutedStyle.Render(fmt.Sprintf("(%d)", s.MaterialCount()))
-				dot := common.ColorDot(func() string {
-					if s.Color != nil {
-						return *s.Color
-					}
-					return ""
-				}())
-				b.WriteString(cursorStr + dot + " " + nameStyle.Render(r.label) + "  " + matCount)
+				colorClass := ""
+				if s.Color != nil {
+					colorClass = *s.Color
+				}
+				dot := common.ColorDot(colorClass)
+				b.WriteString(cursorStr + dot + " " + common.ColoredName(colorClass, r.label, nameStyle) + "  " + matCount)
 			}
 			b.WriteString("\n")
 		}

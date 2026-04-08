@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
-	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/categories"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/categorydetail"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
@@ -34,10 +33,9 @@ const (
 
 // activeMaterialsReadyMsg carries active materials fetched for use in log form.
 type activeMaterialsReadyMsg struct {
-	data                []model.ActiveMaterial
-	preselectedMaterial string // optional: pre-select this material ID
-	// returnTo holds the screen to go back to after logging (instead of dashboard)
-	returnTo *screenState
+	materialID   string
+	materialName string
+	returnTo     *screenState
 }
 
 // screenState holds the current screen + its associated model pointer so we can
@@ -51,24 +49,23 @@ type screenState struct {
 
 // Model is the root application model.
 type Model struct {
-	client          *api.Client
-	current         screen
-	navStack        []screenState // previous screens for esc/back
-	dashboard       dashboard.Model
-	materialsList   materials.Model
-	skillsList      skills.Model
-	progressList    progress.Model
-	logForm         *progress.LogForm
-	logReturnTo     *screenState // where to go after log form
-	categoriesList  categories.Model
-	categoryDetail  *categorydetail.Model
-	skillDetail     *skilldetail.Model
-	materialDetail  *materialdetail.Model
-	activeMaterials []model.ActiveMaterial
-	toast           string
-	toastIsErr      bool
-	width           int
-	height          int
+	client         *api.Client
+	current        screen
+	navStack       []screenState // previous screens for esc/back
+	dashboard      dashboard.Model
+	materialsList  materials.Model
+	skillsList     skills.Model
+	progressList   progress.Model
+	logForm        *progress.LogForm
+	logReturnTo    *screenState // where to go after log form
+	categoriesList categories.Model
+	categoryDetail *categorydetail.Model
+	skillDetail    *skilldetail.Model
+	materialDetail *materialdetail.Model
+	toast          string
+	toastIsErr     bool
+	width          int
+	height         int
 }
 
 func New(client *api.Client) Model {
@@ -135,6 +132,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dashboard.NavigateMsg:
 		return m.handleDashboardNav(msg)
 
+	// --- dashboard: log progress on selected material ---
+	case dashboard.LogFromDashboardMsg:
+		return m, func() tea.Msg {
+			return activeMaterialsReadyMsg{materialID: msg.MaterialID, materialName: msg.MaterialName}
+		}
+
 	// --- dashboard: open material detail from active materials list ---
 	case dashboard.OpenMaterialMsg:
 		md := materialdetail.New(m.client, msg.MaterialID)
@@ -171,22 +174,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.materialDetail.Init()
 
 	case skilldetail.LogFromSkillMsg:
-		materialID := msg.MaterialID
-		returnState := &screenState{
-			id:          m.current,
-			skillDetail: m.skillDetail,
-		}
+		returnState := &screenState{id: m.current, skillDetail: m.skillDetail}
 		return m, func() tea.Msg {
-			data, err := m.client.GetActiveMaterials()
-			if err != nil {
-				return common.ToastMsg{Text: "Could not load materials: " + err.Error(), IsError: true}
-			}
-			return activeMaterialsReadyMsg{data: data, preselectedMaterial: materialID, returnTo: returnState}
+			return activeMaterialsReadyMsg{materialID: msg.MaterialID, materialName: msg.MaterialName, returnTo: returnState}
 		}
 
 	// --- material detail: log ---
 	case materialdetail.LogFromDetailMsg:
-		materialID := msg.MaterialID
 		returnState := &screenState{
 			id:             m.current,
 			materialDetail: m.materialDetail,
@@ -194,11 +188,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			categoryDetail: m.categoryDetail,
 		}
 		return m, func() tea.Msg {
-			data, err := m.client.GetActiveMaterials()
-			if err != nil {
-				return common.ToastMsg{Text: "Could not load materials: " + err.Error(), IsError: true}
-			}
-			return activeMaterialsReadyMsg{data: data, preselectedMaterial: materialID, returnTo: returnState}
+			return activeMaterialsReadyMsg{materialID: msg.MaterialID, materialName: msg.MaterialName, returnTo: returnState}
 		}
 
 	// --- materials list: open detail or log ---
@@ -209,22 +199,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.materialDetail.Init()
 
 	case materials.LogFromMaterialMsg:
-		materialID := msg.MaterialID
 		return m, func() tea.Msg {
-			data, err := m.client.GetActiveMaterials()
-			if err != nil {
-				return common.ToastMsg{Text: "Could not load materials: " + err.Error(), IsError: true}
-			}
-			return activeMaterialsReadyMsg{data: data, preselectedMaterial: materialID}
+			return activeMaterialsReadyMsg{materialID: msg.MaterialID, materialName: msg.MaterialName}
 		}
 
 	// --- open log form ---
 	case activeMaterialsReadyMsg:
-		m.activeMaterials = msg.data
-		lf := progress.NewLogForm(m.client, m.activeMaterials)
-		if msg.preselectedMaterial != "" {
-			lf.PreSelectMaterial(msg.preselectedMaterial)
-		}
+		lf := progress.NewLogForm(m.client, msg.materialID, msg.materialName)
 		m.logForm = &lf
 		m.logReturnTo = msg.returnTo
 		m.pushScreen(screenLogForm)
@@ -348,14 +329,6 @@ func (m Model) handleDashboardNav(nav dashboard.NavigateMsg) (tea.Model, tea.Cmd
 	case dashboard.ScreenCategories:
 		m.pushScreen(screenCategories)
 		return m, m.categoriesList.Init()
-	case dashboard.ScreenLogProgress:
-		return m, func() tea.Msg {
-			data, err := m.client.GetActiveMaterials()
-			if err != nil {
-				return common.ToastMsg{Text: "Could not load materials: " + err.Error(), IsError: true}
-			}
-			return activeMaterialsReadyMsg{data: data}
-		}
 	}
 	return m, nil
 }

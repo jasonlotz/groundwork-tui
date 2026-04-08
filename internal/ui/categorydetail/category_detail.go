@@ -160,7 +160,7 @@ func (m Model) View() string {
 			if mat.TotalUnits > 0 {
 				pct = mat.CompletedUnits / mat.TotalUnits
 			}
-			bar := common.RenderBar(m.barWide, pct)
+			bar := common.RenderBar(m.barWide, pct, 0)
 			skillLabel := common.MutedStyle.Render(common.Truncate(mat.SkillName, 16))
 			name := common.Truncate(mat.Name, 28)
 			b.WriteString(fmt.Sprintf("  %s  %s  %s\n", bar, common.MutedStyle.Render(name), skillLabel))
@@ -233,12 +233,11 @@ func (m Model) buildSkillRow(i int) []string {
 		cursor = common.SelectedStyle.Render("▶")
 	}
 
-	dot := common.ColorDot(func() string {
-		if s.Color != nil {
-			return *s.Color
-		}
-		return ""
-	}())
+	colorClass := ""
+	if s.Color != nil {
+		colorClass = *s.Color
+	}
+	dot := common.ColorDot(colorClass)
 
 	nameStyle := common.TableCellStyle
 	switch {
@@ -247,13 +246,13 @@ func (m Model) buildSkillRow(i int) []string {
 	case s.IsArchived:
 		nameStyle = common.ArchivedNameStyle
 	}
-	name := dot + " " + nameStyle.Render(common.Truncate(s.Name, 24))
+	name := dot + " " + common.ColoredName(colorClass, common.Truncate(s.Name, 24), nameStyle)
 
 	pct := 0.0
 	if s.TotalUnits > 0 {
 		pct = s.CompletedUnits / s.TotalUnits
 	}
-	bar := common.RenderBar(m.barNarrow, pct)
+	bar := common.RenderBar(m.barNarrow, pct, 0)
 
 	meta := fmt.Sprintf("%d active / %d total", s.ActiveMaterialCount, s.MaterialCount)
 
