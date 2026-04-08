@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -36,6 +37,8 @@ type Model struct {
 	height     int
 	spinner    spinner.Model
 	bar        progress.Model
+	help       help.Model
+	keys       common.SimpleKeyMap
 }
 
 func New(client *api.Client) Model {
@@ -45,6 +48,15 @@ func New(client *api.Client) Model {
 		loading:    true,
 		spinner:    common.NewSpinner(),
 		bar:        common.NewProgressBar(18),
+		help:       common.NewHelp(),
+		keys: common.SimpleKeyMap{Bindings: []common.Binding{
+			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
+			common.KB("enter", "detail"),
+			common.KB("l", "log progress"),
+			common.KB("a", "toggle active"),
+			common.KB("r", "refresh"),
+			common.KB("esc", "back"),
+		}},
 	}
 }
 
@@ -67,6 +79,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.help.Width = msg.Width
 
 	case materialsLoadedMsg:
 		m.materials = msg.data
@@ -172,7 +185,7 @@ func (m Model) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(m.renderHelp())
+	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
 	return b.String()
 }
 
@@ -232,22 +245,6 @@ func (m Model) renderRow(i int) string {
 	line2 := "    " + bar + "  " + progressText + "  " + meta + weeklyInfo
 
 	return line1 + "\n" + line2
-}
-
-func (m Model) renderHelp() string {
-	filterLabel := "active only"
-	if m.activeOnly {
-		filterLabel = "all materials"
-	}
-	keys := []string{
-		common.KeyHelp("j/k", "navigate"),
-		common.KeyHelp("enter", "detail"),
-		common.KeyHelp("l", "log progress"),
-		common.KeyHelp("a", filterLabel),
-		common.KeyHelp("r", "refresh"),
-		common.KeyHelp("esc", "back"),
-	}
-	return common.HelpStyle.Render(strings.Join(keys, "   "))
 }
 
 func truncate(s string, n int) string {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -25,10 +26,22 @@ type Model struct {
 	width   int
 	height  int
 	spinner spinner.Model
+	help    help.Model
+	keys    common.SimpleKeyMap
 }
 
 func New(client *api.Client) Model {
-	return Model{client: client, loading: true, spinner: common.NewSpinner()}
+	return Model{
+		client:  client,
+		loading: true,
+		spinner: common.NewSpinner(),
+		help:    common.NewHelp(),
+		keys: common.SimpleKeyMap{Bindings: []common.Binding{
+			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
+			common.KB("r", "refresh"),
+			common.KB("esc", "back"),
+		}},
+	}
 }
 
 func load(c *api.Client) tea.Cmd {
@@ -50,6 +63,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.help.Width = msg.Width
 
 	case logsLoadedMsg:
 		m.logs = msg.data
@@ -128,12 +142,7 @@ func (m Model) View() string {
 	}
 
 	b.WriteString("\n")
-	keys := []string{
-		common.KeyHelp("j/k", "navigate"),
-		common.KeyHelp("r", "refresh"),
-		common.KeyHelp("esc", "back"),
-	}
-	b.WriteString(common.HelpStyle.Render(strings.Join(keys, "   ")))
+	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
 	return b.String()
 }
 

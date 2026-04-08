@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -47,6 +48,8 @@ type Model struct {
 	height          int
 	spinner         spinner.Model
 	bar             progress.Model
+	help            help.Model
+	keys            common.SimpleKeyMap
 }
 
 func New(client *api.Client) Model {
@@ -55,6 +58,18 @@ func New(client *api.Client) Model {
 		loading: true,
 		spinner: common.NewSpinner(),
 		bar:     common.NewProgressBar(20),
+		help:    common.NewHelp(),
+		keys: common.SimpleKeyMap{Bindings: []common.Binding{
+			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
+			common.KB("enter", "detail"),
+			common.KB("c", "categories"),
+			common.KB("s", "skills"),
+			common.KB("m", "materials"),
+			common.KB("p", "progress log"),
+			common.KB("l", "log progress"),
+			common.KB("r", "refresh"),
+			common.KB("q", "quit"),
+		}},
 	}
 }
 
@@ -91,6 +106,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.help.Width = msg.Width
 
 	case overviewLoadedMsg:
 		m.overview = msg.data
@@ -179,7 +195,7 @@ func (m Model) View() string {
 
 	// Help bar
 	b.WriteString("\n")
-	b.WriteString(m.renderHelp())
+	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
 
 	return b.String()
 }
@@ -250,19 +266,4 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 	line2 := "    " + bar + "  " + common.MutedStyle.Render(units) + weeklyInfo + projInfo
 
 	return line1 + "\n" + line2
-}
-
-func (m Model) renderHelp() string {
-	keys := []string{
-		common.KeyHelp("j/k", "navigate"),
-		common.KeyHelp("enter", "detail"),
-		common.KeyHelp("c", "categories"),
-		common.KeyHelp("s", "skills"),
-		common.KeyHelp("m", "materials"),
-		common.KeyHelp("p", "progress log"),
-		common.KeyHelp("l", "log progress"),
-		common.KeyHelp("r", "refresh"),
-		common.KeyHelp("q", "quit"),
-	}
-	return common.HelpStyle.Render(strings.Join(keys, "   "))
 }
