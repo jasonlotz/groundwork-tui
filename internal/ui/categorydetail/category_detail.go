@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -29,10 +30,19 @@ type Model struct {
 	width      int
 	height     int
 	spinner    spinner.Model
+	barWide    progress.Model // width 16 — active materials list
+	barNarrow  progress.Model // width 12 — skill rows
 }
 
 func New(client *api.Client, categoryID string) Model {
-	return Model{client: client, categoryID: categoryID, loading: true, spinner: common.NewSpinner()}
+	return Model{
+		client:     client,
+		categoryID: categoryID,
+		loading:    true,
+		spinner:    common.NewSpinner(),
+		barWide:    common.NewProgressBar(16),
+		barNarrow:  common.NewProgressBar(12),
+	}
 }
 
 func load(c *api.Client, categoryID string) tea.Cmd {
@@ -137,7 +147,7 @@ func (m Model) View() string {
 			if mat.TotalUnits > 0 {
 				pct = mat.CompletedUnits / mat.TotalUnits
 			}
-			bar := common.ProgressBar(pct, 16)
+			bar := common.RenderBar(m.barWide, pct)
 			skillLabel := common.MutedStyle.Render(common.Truncate(mat.SkillName, 16))
 			name := common.Truncate(mat.Name, 28)
 			b.WriteString(fmt.Sprintf("  %s  %s  %s\n", bar, common.MutedStyle.Render(name), skillLabel))
@@ -205,7 +215,7 @@ func (m Model) renderSkillRow(i int) string {
 	if s.TotalUnits > 0 {
 		pct = s.CompletedUnits / s.TotalUnits
 	}
-	bar := common.ProgressBar(pct, 12)
+	bar := common.RenderBar(m.barNarrow, pct)
 	meta := common.MutedStyle.Render(fmt.Sprintf("%d active / %d total", s.ActiveMaterialCount, s.MaterialCount))
 
 	return cursorStr + nameStyle.Render(common.Truncate(s.Name, 24)) + archived + "  " + bar + "  " + meta

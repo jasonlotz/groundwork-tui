@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -45,6 +46,7 @@ type Model struct {
 	width           int
 	height          int
 	spinner         spinner.Model
+	bar             progress.Model
 }
 
 func New(client *api.Client) Model {
@@ -52,6 +54,7 @@ func New(client *api.Client) Model {
 		client:  client,
 		loading: true,
 		spinner: common.NewSpinner(),
+		bar:     common.NewProgressBar(20),
 	}
 }
 
@@ -210,7 +213,7 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 	if mat.TotalUnits > 0 {
 		pct = mat.CompletedUnits / mat.TotalUnits
 	}
-	bar := common.ProgressBar(pct, 20)
+	bar := common.RenderBar(m.bar, pct)
 
 	// Units info
 	units := fmt.Sprintf("%.0f / %.0f %s", mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label())

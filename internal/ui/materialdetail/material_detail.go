@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -30,10 +31,11 @@ type Model struct {
 	width      int
 	height     int
 	spinner    spinner.Model
+	bar        progress.Model
 }
 
 func New(client *api.Client, materialID string) Model {
-	return Model{client: client, materialID: materialID, loading: true, spinner: common.NewSpinner()}
+	return Model{client: client, materialID: materialID, loading: true, spinner: common.NewSpinner(), bar: common.NewProgressBar(40)}
 }
 
 func load(c *api.Client, materialID string) tea.Cmd {
@@ -146,7 +148,7 @@ func (m Model) View() string {
 	if mat.TotalUnits > 0 {
 		pct = mat.CompletedUnits / mat.TotalUnits
 	}
-	b.WriteString("  " + common.ProgressBar(pct, 40) + "\n")
+	b.WriteString("  " + common.RenderBar(m.bar, pct) + "\n")
 
 	// Meta info
 	metaLines := []string{}

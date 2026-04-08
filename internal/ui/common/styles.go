@@ -2,8 +2,7 @@
 package common
 
 import (
-	"strings"
-
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -66,28 +65,32 @@ var (
 			Bold(true)
 )
 
-// ProgressBar renders a simple ASCII progress bar.
-// width is the total character width of the bar.
-func ProgressBar(pct float64, width int) string {
+// NewProgressBar returns a bubbles/progress model styled with the project palette.
+// width is the total character width of the bar (excluding the percentage label).
+func NewProgressBar(width int) progress.Model {
 	if width <= 0 {
 		width = 20
 	}
-	if pct > 1.0 {
-		pct = 1.0
-	}
+	p := progress.New(
+		progress.WithGradient(string(ColorPrimary), string(ColorHighlight)),
+		progress.WithFillCharacters('█', '░'),
+		progress.WithoutPercentage(),
+		progress.WithWidth(width),
+	)
+	p.EmptyColor = string(ColorBorder)
+	return p
+}
+
+// RenderBar renders a progress bar for the given percentage (0.0–1.0) using ViewAs.
+// This is a stateless render — no animation state required.
+func RenderBar(p progress.Model, pct float64) string {
 	if pct < 0 {
 		pct = 0
 	}
-	filled := int(float64(width) * pct)
-	empty := width - filled
-
-	bar := lipgloss.NewStyle().Foreground(ColorSuccess).Render(repeatChar("█", filled)) +
-		lipgloss.NewStyle().Foreground(ColorBorder).Render(repeatChar("░", empty))
-	return bar
-}
-
-func repeatChar(ch string, n int) string {
-	return strings.Repeat(ch, n)
+	if pct > 1 {
+		pct = 1
+	}
+	return p.ViewAs(pct)
 }
 
 // Truncate shortens s to at most n runes, adding "…" if truncated.
