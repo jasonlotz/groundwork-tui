@@ -148,7 +148,7 @@ func (m Model) View() string {
 	if m.activeOnly {
 		filterTag = "  " + common.MutedStyle.Render("[active only]")
 	}
-	b.WriteString(common.TitleStyle.Render("Materials") + filterTag)
+	b.WriteString(common.RenderTitle("Materials", m.width) + filterTag)
 	b.WriteString("\n")
 
 	if len(m.filtered) == 0 {
@@ -182,9 +182,14 @@ func (m Model) renderRow(i int) string {
 	selected := i == m.cursor
 	cursorStr := "  "
 	nameStyle := lipgloss.NewStyle()
-	if selected {
+	switch {
+	case selected:
 		cursorStr = common.SelectedStyle.Render("▶ ")
 		nameStyle = common.SelectedStyle
+	case mat.Status == model.StatusComplete:
+		nameStyle = common.CompletedNameStyle
+	case mat.Status == model.StatusInactive:
+		nameStyle = common.InactiveNameStyle
 	}
 
 	// Progress

@@ -104,7 +104,7 @@ func (m Model) View() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(common.TitleStyle.Render("Skills"))
+	b.WriteString(common.RenderTitle("Skills", m.width))
 	b.WriteString("\n")
 
 	if len(m.skills) == 0 {

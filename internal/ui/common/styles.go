@@ -2,6 +2,9 @@
 package common
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -16,6 +19,7 @@ var (
 	ColorBorder    = lipgloss.Color("#374151") // gray-700
 	ColorSubtle    = lipgloss.Color("#9CA3AF") // gray-400
 	ColorHighlight = lipgloss.Color("#A78BFA") // violet-400
+	ColorCardBg    = lipgloss.Color("#1F1635") // very dark violet tint for stat cards
 )
 
 // Styles
@@ -49,9 +53,11 @@ var (
 			Bold(true).
 			Foreground(ColorHighlight)
 
+	// BorderStyle is used for KPI stat cards — subtle background tint.
 	BorderStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(ColorBorder).
+			Background(ColorCardBg).
 			Padding(0, 1)
 
 	HelpStyle = lipgloss.NewStyle().
@@ -59,11 +65,38 @@ var (
 			MarginTop(1)
 
 	StatLabelStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+			Foreground(ColorMuted).
+			Background(ColorCardBg)
 
 	StatValueStyle = lipgloss.NewStyle().
-			Bold(true)
+			Bold(true).
+			Background(ColorCardBg)
+
+	// CompletedNameStyle renders completed material names with strikethrough.
+	CompletedNameStyle = lipgloss.NewStyle().
+				Foreground(ColorPrimary).
+				Strikethrough(true)
+
+	// InactiveNameStyle renders inactive material names in italic muted text.
+	InactiveNameStyle = lipgloss.NewStyle().
+				Foreground(ColorMuted).
+				Italic(true)
+
+	// ArchivedNameStyle renders archived item names in italic muted text.
+	ArchivedNameStyle = lipgloss.NewStyle().
+				Foreground(ColorMuted).
+				Italic(true)
 )
+
+// RenderTitle renders a decorative title with a violet rule beneath it.
+func RenderTitle(s string, width int) string {
+	if width < 1 {
+		width = 40
+	}
+	title := TitleStyle.Render(s)
+	rule := lipgloss.NewStyle().Foreground(ColorBorder).Render(strings.Repeat("─", width))
+	return fmt.Sprintf("%s\n%s", title, rule)
+}
 
 // NewProgressBar returns a bubbles/progress model styled with the project palette.
 // width is the total character width of the bar (excluding the percentage label).

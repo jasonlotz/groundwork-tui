@@ -120,7 +120,7 @@ func (m Model) View() string {
 
 	// Title + breadcrumb
 	crumb := common.MutedStyle.Render(mat.Skill.Category.Name + " › " + mat.Skill.Name + " › ")
-	b.WriteString(common.TitleStyle.Render(crumb + mat.Name))
+	b.WriteString(common.RenderTitle(crumb+mat.Name, m.width))
 	b.WriteString("\n")
 
 	// KPI row

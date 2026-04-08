@@ -129,7 +129,7 @@ func (m Model) View() string {
 
 	// Title + breadcrumb
 	crumb := common.MutedStyle.Render(d.Skill.Category.Name + " › ")
-	b.WriteString(common.TitleStyle.Render(crumb + d.Skill.Name))
+	b.WriteString(common.RenderTitle(crumb+d.Skill.Name, m.width))
 	b.WriteString("\n")
 
 	// KPI row
@@ -185,9 +185,14 @@ func (m Model) renderMaterialRow(i int) string {
 
 	cursorStr := "  "
 	nameStyle := lipgloss.NewStyle()
-	if selected {
+	switch {
+	case selected:
 		cursorStr = common.SelectedStyle.Render("▶ ")
 		nameStyle = common.SelectedStyle
+	case mat.Status == model.StatusComplete:
+		nameStyle = common.CompletedNameStyle
+	case mat.Status == model.StatusInactive:
+		nameStyle = common.InactiveNameStyle
 	}
 
 	pct := 0.0

@@ -121,7 +121,7 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	// Title
-	b.WriteString(common.TitleStyle.Render(d.Category.Name))
+	b.WriteString(common.RenderTitle(d.Category.Name, m.width))
 	b.WriteString("\n")
 
 	// KPI row
@@ -201,9 +201,12 @@ func (m Model) renderSkillRow(i int) string {
 	s := m.data.SkillsSummary[i]
 	cursorStr := "  "
 	nameStyle := common.MutedStyle
-	if i == m.cursor {
+	switch {
+	case i == m.cursor:
 		cursorStr = common.SelectedStyle.Render("▶ ")
 		nameStyle = common.SelectedStyle
+	case s.IsArchived:
+		nameStyle = common.ArchivedNameStyle
 	}
 
 	archived := ""

@@ -104,7 +104,7 @@ func (m Model) View() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(common.TitleStyle.Render("Categories"))
+	b.WriteString(common.RenderTitle("Categories", m.width))
 	b.WriteString("\n")
 
 	if len(m.categories) == 0 {
@@ -143,9 +143,12 @@ func (m Model) renderRow(i int) string {
 	cat := m.categories[i]
 	cursorStr := "  "
 	nameStyle := common.MutedStyle
-	if i == m.cursor {
+	switch {
+	case i == m.cursor:
 		cursorStr = common.SelectedStyle.Render("▶ ")
 		nameStyle = common.SelectedStyle
+	case cat.IsArchived:
+		nameStyle = common.ArchivedNameStyle
 	}
 
 	archived := ""

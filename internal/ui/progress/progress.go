@@ -96,7 +96,7 @@ func (m Model) View() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(common.TitleStyle.Render("Progress Log"))
+	b.WriteString(common.RenderTitle("Progress Log", m.width))
 	b.WriteString("\n")
 
 	if len(m.logs) == 0 {

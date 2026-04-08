@@ -155,7 +155,7 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	// Title
-	b.WriteString(common.TitleStyle.Render("Groundwork"))
+	b.WriteString(common.RenderTitle("Groundwork", m.width))
 	b.WriteString("\n")
 
 	// KPI row
