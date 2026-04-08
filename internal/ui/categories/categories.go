@@ -63,7 +63,7 @@ func buildKeys(hasArchived bool, showArchived bool) common.SimpleKeyMap {
 	}
 	bindings = append(bindings,
 		common.KB("D", "delete (archived)"),
-		common.KB("z", archivedLabel),
+		common.KB("a", archivedLabel),
 		common.KB("r", "refresh"),
 		common.KB("esc", "back"),
 	)
@@ -176,7 +176,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			m.err = nil
 			return m, load(m.client)
-		case "z":
+		case "a":
 			m.showArchived = !m.showArchived
 			m.applyFilter()
 			if m.cursor >= len(m.filtered) && len(m.filtered) > 0 {
