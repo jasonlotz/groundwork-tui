@@ -272,3 +272,216 @@ func (c *Client) GetMaterialDetail(materialID string) (*model.MaterialDetail, er
 	}
 	return &out, nil
 }
+
+// --- category mutations ---
+
+type categoryCreateInput struct {
+	Name  string  `json:"name"`
+	Color *string `json:"color,omitempty"`
+}
+
+// CreateCategory calls category.create.
+func (c *Client) CreateCategory(name string, color *string) error {
+	_, err := mutation[struct{}](c, "category.create", categoryCreateInput{Name: name, Color: color})
+	return err
+}
+
+type categoryUpdateInput struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Color *string `json:"color,omitempty"`
+}
+
+// UpdateCategory calls category.update.
+func (c *Client) UpdateCategory(id, name string, color *string) error {
+	_, err := mutation[struct{}](c, "category.update", categoryUpdateInput{ID: id, Name: name, Color: color})
+	return err
+}
+
+type categoryIDInput struct {
+	ID string `json:"id"`
+}
+
+// ArchiveCategory calls category.archive.
+func (c *Client) ArchiveCategory(id string) error {
+	_, err := mutation[struct{}](c, "category.archive", categoryIDInput{ID: id})
+	return err
+}
+
+// UnarchiveCategory calls category.unarchive.
+func (c *Client) UnarchiveCategory(id string) error {
+	_, err := mutation[struct{}](c, "category.unarchive", categoryIDInput{ID: id})
+	return err
+}
+
+// DeleteCategory calls category.delete.
+func (c *Client) DeleteCategory(id string) error {
+	_, err := mutation[struct{}](c, "category.delete", categoryIDInput{ID: id})
+	return err
+}
+
+// --- skill mutations ---
+
+type skillCreateInput struct {
+	Name       string  `json:"name"`
+	CategoryID string  `json:"categoryId"`
+	Color      *string `json:"color,omitempty"`
+}
+
+// CreateSkill calls skill.create.
+func (c *Client) CreateSkill(name, categoryID string, color *string) error {
+	_, err := mutation[struct{}](c, "skill.create", skillCreateInput{Name: name, CategoryID: categoryID, Color: color})
+	return err
+}
+
+type skillUpdateInput struct {
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	CategoryID string  `json:"categoryId"`
+	Color      *string `json:"color,omitempty"`
+}
+
+// UpdateSkill calls skill.update.
+func (c *Client) UpdateSkill(id, name, categoryID string, color *string) error {
+	_, err := mutation[struct{}](c, "skill.update", skillUpdateInput{ID: id, Name: name, CategoryID: categoryID, Color: color})
+	return err
+}
+
+type skillIDInput struct {
+	ID string `json:"id"`
+}
+
+// ArchiveSkill calls skill.archive.
+func (c *Client) ArchiveSkill(id string) error {
+	_, err := mutation[struct{}](c, "skill.archive", skillIDInput{ID: id})
+	return err
+}
+
+// UnarchiveSkill calls skill.unarchive.
+func (c *Client) UnarchiveSkill(id string) error {
+	_, err := mutation[struct{}](c, "skill.unarchive", skillIDInput{ID: id})
+	return err
+}
+
+// DeleteSkill calls skill.delete.
+func (c *Client) DeleteSkill(id string) error {
+	_, err := mutation[struct{}](c, "skill.delete", skillIDInput{ID: id})
+	return err
+}
+
+// --- materialType queries ---
+
+// GetAllMaterialTypes calls materialType.getAll.
+func (c *Client) GetAllMaterialTypes() ([]model.MaterialType, error) {
+	out, err := query[[]model.MaterialType](c, "materialType.getAll", struct{}{})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// --- material mutations ---
+
+type materialCreateInput struct {
+	Name           string  `json:"name"`
+	SkillID        string  `json:"skillId"`
+	TypeID         string  `json:"typeId"`
+	UnitType       string  `json:"unitType"`
+	TotalUnits     float64 `json:"totalUnits"`
+	URL            *string `json:"url,omitempty"`
+	Notes          *string `json:"notes,omitempty"`
+	StartDate      *string `json:"startDate,omitempty"`
+	CompletedDate  *string `json:"completedDate,omitempty"`
+	WeeklyUnitGoal *int    `json:"weeklyUnitGoal,omitempty"`
+}
+
+// MaterialCreateResult carries the fields needed to create a material.
+// Populated by common.MaterialFormResult and passed to CreateMaterial.
+type MaterialCreateResult struct {
+	Name          string
+	SkillID       string
+	TypeID        string
+	UnitType      string
+	TotalUnits    float64
+	URL           *string
+	Notes         *string
+	StartDate     *string
+	CompletedDate *string
+	WeeklyGoal    *int
+}
+
+// CreateMaterial calls material.create.
+func (c *Client) CreateMaterial(r MaterialCreateResult) error {
+	input := materialCreateInput{
+		Name:           r.Name,
+		SkillID:        r.SkillID,
+		TypeID:         r.TypeID,
+		UnitType:       r.UnitType,
+		TotalUnits:     r.TotalUnits,
+		URL:            r.URL,
+		Notes:          r.Notes,
+		StartDate:      r.StartDate,
+		CompletedDate:  r.CompletedDate,
+		WeeklyUnitGoal: r.WeeklyGoal,
+	}
+	_, err := mutation[struct{}](c, "material.create", input)
+	return err
+}
+
+type materialUpdateInput struct {
+	ID             string   `json:"id"`
+	Name           *string  `json:"name,omitempty"`
+	SkillID        *string  `json:"skillId,omitempty"`
+	TypeID         *string  `json:"typeId,omitempty"`
+	UnitType       *string  `json:"unitType,omitempty"`
+	TotalUnits     *float64 `json:"totalUnits,omitempty"`
+	URL            *string  `json:"url,omitempty"`
+	Notes          *string  `json:"notes,omitempty"`
+	StartDate      *string  `json:"startDate,omitempty"`
+	CompletedDate  *string  `json:"completedDate,omitempty"`
+	WeeklyUnitGoal *int     `json:"weeklyUnitGoal,omitempty"`
+}
+
+// MaterialUpdateResult carries the fields needed to update a material.
+type MaterialUpdateResult struct {
+	ID            string
+	Name          string
+	SkillID       string
+	TypeID        string
+	UnitType      string
+	TotalUnits    float64
+	URL           *string
+	Notes         *string
+	StartDate     *string
+	CompletedDate *string
+	WeeklyGoal    *int
+}
+
+// UpdateMaterial calls material.update.
+func (c *Client) UpdateMaterial(r MaterialUpdateResult) error {
+	input := materialUpdateInput{
+		ID:             r.ID,
+		Name:           &r.Name,
+		SkillID:        &r.SkillID,
+		TypeID:         &r.TypeID,
+		UnitType:       &r.UnitType,
+		TotalUnits:     &r.TotalUnits,
+		URL:            r.URL,
+		Notes:          r.Notes,
+		StartDate:      r.StartDate,
+		CompletedDate:  r.CompletedDate,
+		WeeklyUnitGoal: r.WeeklyGoal,
+	}
+	_, err := mutation[struct{}](c, "material.update", input)
+	return err
+}
+
+type materialDeleteInput struct {
+	ID string `json:"id"`
+}
+
+// DeleteMaterial calls material.delete.
+func (c *Client) DeleteMaterial(id string) error {
+	_, err := mutation[struct{}](c, "material.delete", materialDeleteInput{ID: id})
+	return err
+}

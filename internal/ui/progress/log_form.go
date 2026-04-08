@@ -4,7 +4,6 @@ package progress
 import (
 	"fmt"
 	"strconv"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -23,7 +22,11 @@ type LogForm struct {
 	materialName string
 	form         *huh.Form
 
-	// bound form values
+	// bound form values — stored behind a pointer so copies remain valid.
+	state *logFormState
+}
+
+type logFormState struct {
 	dateStr  string
 	unitsStr string
 	notes    string
@@ -31,14 +34,14 @@ type LogForm struct {
 
 // NewLogForm creates a log-progress form pre-selected on the given material.
 func NewLogForm(client *api.Client, materialID, materialName string) LogForm {
-	today := time.Now().Format("2006-01-02")
+	today := fmt.Sprintf("%s", common.TodayString())
+	st := &logFormState{dateStr: today}
 
 	lf := LogForm{
 		client:       client,
 		materialID:   materialID,
 		materialName: materialName,
-		dateStr:      today,
-		unitsStr:     "",
+		state:        st,
 	}
 
 	lf.form = huh.NewForm(
@@ -47,18 +50,20 @@ func NewLogForm(client *api.Client, materialID, materialName string) LogForm {
 				Title(fmt.Sprintf("Log progress — %s", common.Truncate(materialName, 40))).
 				Description("Date (YYYY-MM-DD)").
 				Placeholder(today).
-				Value(&lf.dateStr),
+				Validate(common.ValidateDate).
+				Value(&st.dateStr),
 
 			huh.NewInput().
 				Title("Units").
 				Description("How many units did you complete?").
 				Placeholder("1").
-				Value(&lf.unitsStr),
+				Validate(common.ValidateUnits).
+				Value(&st.unitsStr),
 
 			huh.NewText().
 				Title("Notes").
 				Description("Optional").
-				Value(&lf.notes),
+				Value(&st.notes),
 		),
 	).WithTheme(huh.ThemeDracula())
 
@@ -91,16 +96,14 @@ func (lf LogForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (lf LogForm) submit() tea.Cmd {
 	return func() tea.Msg {
-		units, err := strconv.ParseFloat(lf.unitsStr, 64)
-		if err != nil || units <= 0 {
-			return common.ToastMsg{Text: "Invalid units value", IsError: true}
-		}
+		// Validation already passed in the form; these parses are safe.
+		units, _ := strconv.ParseFloat(lf.state.unitsStr, 64)
 		var notes *string
-		if lf.notes != "" {
-			n := lf.notes
+		if lf.state.notes != "" {
+			n := lf.state.notes
 			notes = &n
 		}
-		if err := lf.client.LogUnits(lf.materialID, lf.dateStr, units, notes); err != nil {
+		if err := lf.client.LogUnits(lf.materialID, lf.state.dateStr, units, notes); err != nil {
 			return common.ToastMsg{Text: "Failed to log: " + err.Error(), IsError: true}
 		}
 		return LogDoneMsg{Cancelled: false}
@@ -108,5 +111,5 @@ func (lf LogForm) submit() tea.Cmd {
 }
 
 func (lf LogForm) View() string {
-	return lf.form.View()
+	return common.PopupStyle.Render(lf.form.View())
 }

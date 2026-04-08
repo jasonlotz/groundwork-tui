@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/progress"
+	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -16,14 +16,15 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
 )
 
 type dataLoadedMsg struct{ data *model.MaterialDetail }
 
-// LogFromDetailMsg is sent when the user presses l to log progress.
-type LogFromDetailMsg struct {
-	MaterialID   string
-	MaterialName string
+// preloadMsg carries skills + types fetched before opening the material form.
+type preloadMsg struct {
+	skills []model.Skill
+	types  []model.MaterialType
 }
 
 // Model is the Bubble Tea model for the material detail screen.
@@ -37,9 +38,10 @@ type Model struct {
 	width      int
 	height     int
 	spinner    spinner.Model
-	bar        progress.Model
+	bar        bbprogress.Model
 	help       help.Model
 	keys       common.SimpleKeyMap
+	overlay    tea.Model
 }
 
 func New(client *api.Client, materialID string) Model {
@@ -53,6 +55,8 @@ func New(client *api.Client, materialID string) Model {
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "scroll log", "j", "k", "down", "up"),
 			common.KB("l", "log progress"),
+			common.KB("e", "edit"),
+			common.KB("D", "delete"),
 			common.KB("r", "refresh"),
 			common.KB("esc", "back"),
 		}},
@@ -69,11 +73,70 @@ func load(c *api.Client, materialID string) tea.Cmd {
 	}
 }
 
+// preload fetches skills and types needed to populate the material edit form.
+func preload(c *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		skills, err := c.GetAllSkills()
+		if err != nil {
+			return common.ErrMsg{Err: err}
+		}
+		types, err := c.GetAllMaterialTypes()
+		if err != nil {
+			return common.ErrMsg{Err: err}
+		}
+		return preloadMsg{skills: skills, types: types}
+	}
+}
+
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(load(m.client, m.materialID), m.spinner.Tick)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// ── overlay routing ──────────────────────────────────────────────────────
+	if m.overlay != nil {
+		if k, ok := msg.(tea.KeyMsg); ok && (k.String() == "ctrl+c" || k.String() == "q") {
+			return m, tea.Quit
+		}
+
+		updated, cmd := m.overlay.Update(msg)
+		m.overlay = updated
+
+		switch msg := msg.(type) {
+		case progress.LogDoneMsg:
+			m.overlay = nil
+			if !msg.Cancelled {
+				return m, tea.Batch(
+					load(m.client, m.materialID),
+					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
+				)
+			}
+			return m, nil
+
+		case common.MaterialFormDoneMsg:
+			m.overlay = nil
+			if !msg.Cancelled {
+				if mf, ok := updated.(common.MaterialForm); ok {
+					return m, submitMaterialForm(m.client, m.materialID, mf)
+				}
+			}
+			return m, nil
+
+		case common.ConfirmDoneMsg:
+			m.overlay = nil
+			if msg.Confirmed && msg.Tag == "delete" {
+				return m, deleteMaterial(m.client, m.materialID)
+			}
+			return m, nil
+
+		case common.ToastMsg:
+			return m, func() tea.Msg { return msg }
+		}
+
+		return m, cmd
+	}
+
+	// ── normal update ────────────────────────────────────────────────────────
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -83,6 +146,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dataLoadedMsg:
 		m.data = msg.data
 		m.loading = false
+
+	case preloadMsg:
+		// Preload completed — open the edit form overlay pre-populated from current data.
+		if m.data == nil {
+			return m, nil
+		}
+		info := m.data.Material
+		// Convert MaterialDetailInfo → model.Material for the form constructor.
+		mat := model.Material{
+			ID:             info.ID,
+			Name:           info.Name,
+			UnitType:       info.UnitType,
+			TotalUnits:     info.TotalUnits,
+			CompletedUnits: info.CompletedUnits,
+			Status:         info.Status,
+			SkillID:        info.Skill.ID,
+			WeeklyUnitGoal: info.WeeklyUnitGoal,
+			URL:            info.URL,
+			StartDate:      info.StartDate,
+			CompletedDate:  info.CompletedDate,
+			Skill:          info.Skill,
+			MaterialType:   info.MaterialType,
+		}
+		f := common.NewMaterialEditForm(mat.ID, mat, msg.skills, msg.types)
+		m.overlay = f
+		return m, f.Init()
 
 	case common.ErrMsg:
 		m.err = msg.Err
@@ -112,12 +201,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 			if m.data.Material.Status == model.StatusActive {
-				id := m.materialID
-				name := m.data.Material.Name
-				return m, func() tea.Msg { return LogFromDetailMsg{MaterialID: id, MaterialName: name} }
+				lf := progress.NewLogForm(m.client, m.materialID, m.data.Material.Name)
+				m.overlay = lf
+				return m, m.overlay.Init()
 			}
 			return m, func() tea.Msg {
 				return common.ToastMsg{Text: "Only active materials can be logged.", IsError: true}
+			}
+		case "e":
+			if m.data != nil {
+				return m, preload(m.client)
+			}
+		case "D":
+			if m.data != nil {
+				mat := m.data.Material
+				f := common.NewConfirmForm(
+					"Delete material?",
+					fmt.Sprintf("Permanently delete \"%s\" and all its progress logs?", common.Truncate(mat.Name, 40)),
+					"delete",
+				)
+				m.overlay = f
+				return m, f.Init()
 			}
 		case "r":
 			m.loading = true
@@ -128,7 +232,50 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// submitMaterialForm runs the update API call after the edit form completes.
+func submitMaterialForm(c *api.Client, materialID string, mf common.MaterialForm) tea.Cmd {
+	return func() tea.Msg {
+		r := mf.Result()
+		err := c.UpdateMaterial(api.MaterialUpdateResult{
+			ID:            materialID,
+			Name:          r.Name,
+			SkillID:       r.SkillID,
+			TypeID:        r.TypeID,
+			UnitType:      r.UnitType,
+			TotalUnits:    r.TotalUnits,
+			URL:           r.URL,
+			Notes:         r.Notes,
+			StartDate:     r.StartDate,
+			CompletedDate: r.CompletedDate,
+			WeeklyGoal:    r.WeeklyGoal,
+		})
+		if err != nil {
+			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
+		}
+		data, loadErr := c.GetMaterialDetail(materialID)
+		if loadErr != nil {
+			return common.ToastMsg{Text: "Material updated (refresh to see changes)"}
+		}
+		return dataLoadedMsg{data: data}
+	}
+}
+
+// deleteMaterial deletes the material and navigates back.
+func deleteMaterial(c *api.Client, materialID string) tea.Cmd {
+	return func() tea.Msg {
+		if err := c.DeleteMaterial(materialID); err != nil {
+			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
+		}
+		// Navigate back since the material no longer exists.
+		return common.GoBackMsg{}
+	}
+}
+
 func (m Model) View() string {
+	if m.overlay != nil {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())
+	}
+
 	if m.loading {
 		return common.SpinnerView(m.spinner)
 	}

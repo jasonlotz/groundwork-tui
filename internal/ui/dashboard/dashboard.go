@@ -6,13 +6,15 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/progress"
+	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
 )
 
 // NavigateMsg is sent when the user navigates to another screen.
@@ -27,12 +29,6 @@ const (
 
 // OpenMaterialMsg is sent when the user presses enter on an active material.
 type OpenMaterialMsg struct{ MaterialID string }
-
-// LogFromDashboardMsg is sent when the user presses l on an active material.
-type LogFromDashboardMsg struct {
-	MaterialID   string
-	MaterialName string
-}
 
 // --- messages ---
 
@@ -51,9 +47,10 @@ type Model struct {
 	width           int
 	height          int
 	spinner         spinner.Model
-	bar             progress.Model
+	bar             bbprogress.Model
 	help            help.Model
 	keys            common.SimpleKeyMap
+	overlay         *progress.LogForm
 }
 
 func New(client *api.Client) Model {
@@ -106,6 +103,28 @@ func loadActiveMaterials(c *api.Client) tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Route to overlay when active.
+	if m.overlay != nil {
+		if k, ok := msg.(tea.KeyMsg); ok && (k.String() == "ctrl+c" || k.String() == "q") {
+			return m, tea.Quit
+		}
+		updated, cmd := m.overlay.Update(msg)
+		if lf, ok := updated.(progress.LogForm); ok {
+			m.overlay = &lf
+		}
+		if done, ok := msg.(progress.LogDoneMsg); ok {
+			m.overlay = nil
+			if !done.Cancelled {
+				return m, tea.Batch(
+					loadOverview(m.client),
+					loadActiveMaterials(m.client),
+					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
+				)
+			}
+		}
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -160,9 +179,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "l":
 			if len(m.activeMaterials) > 0 {
 				mat := m.activeMaterials[m.cursor]
-				return m, func() tea.Msg {
-					return LogFromDashboardMsg{MaterialID: mat.ID, MaterialName: mat.Name}
-				}
+				lf := progress.NewLogForm(m.client, mat.ID, mat.Name)
+				m.overlay = &lf
+				return m, m.overlay.Init()
 			}
 		}
 	}
@@ -217,6 +236,9 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
 
+	if m.overlay != nil {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())
+	}
 	return b.String()
 }
 

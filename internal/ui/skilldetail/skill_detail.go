@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/progress"
+	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -15,18 +15,13 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
 )
 
 type dataLoadedMsg struct{ data *model.SkillDetail }
 
 // OpenMaterialMsg is sent when the user presses enter on a material.
 type OpenMaterialMsg struct{ MaterialID string }
-
-// LogFromSkillMsg is sent when the user presses l on a material.
-type LogFromSkillMsg struct {
-	MaterialID   string
-	MaterialName string
-}
 
 // Model is the Bubble Tea model for the skill detail screen.
 type Model struct {
@@ -39,9 +34,10 @@ type Model struct {
 	width   int
 	height  int
 	spinner spinner.Model
-	bar     progress.Model
+	bar     bbprogress.Model
 	help    help.Model
 	keys    common.SimpleKeyMap
+	overlay *progress.LogForm
 }
 
 func New(client *api.Client, skillID string) Model {
@@ -77,6 +73,27 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Route to overlay when active.
+	if m.overlay != nil {
+		if k, ok := msg.(tea.KeyMsg); ok && (k.String() == "ctrl+c" || k.String() == "q") {
+			return m, tea.Quit
+		}
+		updated, cmd := m.overlay.Update(msg)
+		if lf, ok := updated.(progress.LogForm); ok {
+			m.overlay = &lf
+		}
+		if done, ok := msg.(progress.LogDoneMsg); ok {
+			m.overlay = nil
+			if !done.Cancelled {
+				return m, tea.Batch(
+					load(m.client, m.skillID),
+					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
+				)
+			}
+		}
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -119,9 +136,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.data != nil && len(m.data.AllMaterials) > 0 {
 				mat := m.data.AllMaterials[m.cursor]
 				if mat.Status == model.StatusActive {
-					return m, func() tea.Msg {
-						return LogFromSkillMsg{MaterialID: mat.ID, MaterialName: mat.Name}
-					}
+					lf := progress.NewLogForm(m.client, mat.ID, mat.Name)
+					m.overlay = &lf
+					return m, m.overlay.Init()
 				}
 				return m, func() tea.Msg {
 					return common.ToastMsg{Text: "Only active materials can be logged.", IsError: true}
@@ -213,6 +230,10 @@ func (m Model) View() string {
 
 	b.WriteString("\n")
 	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
+
+	if m.overlay != nil {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())
+	}
 	return b.String()
 }
 

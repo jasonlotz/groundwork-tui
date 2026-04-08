@@ -37,6 +37,7 @@ type Model struct {
 	barNarrow  progress.Model // width 12 — skill rows
 	help       help.Model
 	keys       common.SimpleKeyMap
+	overlay    tea.Model
 }
 
 func New(client *api.Client, categoryID string) Model {
@@ -48,13 +49,28 @@ func New(client *api.Client, categoryID string) Model {
 		barWide:    common.NewProgressBar(16),
 		barNarrow:  common.NewProgressBar(12),
 		help:       common.NewHelp(),
-		keys: common.SimpleKeyMap{Bindings: []common.Binding{
-			common.KBKeys("j/k", "navigate skills", "j", "k", "down", "up"),
-			common.KB("enter", "open skill"),
-			common.KB("r", "refresh"),
-			common.KB("esc", "back"),
-		}},
+		keys:       buildKeys(false),
 	}
+}
+
+func buildKeys(selectedIsArchived bool) common.SimpleKeyMap {
+	bindings := []common.Binding{
+		common.KBKeys("j/k", "navigate skills", "j", "k", "down", "up"),
+		common.KB("enter", "open skill"),
+		common.KB("n", "new skill"),
+		common.KB("e", "edit skill"),
+	}
+	if selectedIsArchived {
+		bindings = append(bindings, common.KB("A", "unarchive skill"))
+	} else {
+		bindings = append(bindings, common.KB("A", "archive skill"))
+	}
+	bindings = append(bindings,
+		common.KB("D", "delete (archived)"),
+		common.KB("r", "refresh"),
+		common.KB("esc", "back"),
+	)
+	return common.SimpleKeyMap{Bindings: bindings}
 }
 
 func load(c *api.Client, categoryID string) tea.Cmd {
@@ -72,6 +88,49 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// ── overlay routing ──────────────────────────────────────────────────────
+	if m.overlay != nil {
+		if k, ok := msg.(tea.KeyMsg); ok && k.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+
+		updated, cmd := m.overlay.Update(msg)
+		m.overlay = updated
+
+		switch msg := msg.(type) {
+		case common.SkillFormDoneMsg:
+			m.overlay = nil
+			if !msg.Cancelled {
+				if sf, ok := updated.(common.SkillForm); ok {
+					return m, submitSkillForm(m.client, m.categoryID, sf)
+				}
+			}
+			return m, cmd
+
+		case common.ConfirmDoneMsg:
+			m.overlay = nil
+			if msg.Confirmed {
+				return m, submitSkillConfirm(m.client, m.data, m.cursor, msg.Tag)
+			}
+			return m, cmd
+
+		case dataLoadedMsg:
+			m.data = msg.data
+			m.loading = false
+			if m.cursor >= skillCount(m.data) && m.cursor > 0 {
+				m.cursor = skillCount(m.data) - 1
+			}
+			m.keys = buildKeys(m.selectedIsArchived())
+			return m, nil
+
+		case common.ToastMsg:
+			return m, func() tea.Msg { return msg }
+		}
+
+		return m, cmd
+	}
+
+	// ── normal update ────────────────────────────────────────────────────────
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -81,6 +140,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dataLoadedMsg:
 		m.data = msg.data
 		m.loading = false
+		if m.cursor >= skillCount(m.data) && m.cursor > 0 {
+			m.cursor = skillCount(m.data) - 1
+		}
+		m.keys = buildKeys(m.selectedIsArchived())
 
 	case common.ErrMsg:
 		m.err = msg.Err
@@ -100,10 +163,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "j", "down":
 			if m.data != nil && m.cursor < len(m.data.SkillsSummary)-1 {
 				m.cursor++
+				m.keys = buildKeys(m.selectedIsArchived())
 			}
 		case "k", "up":
 			if m.cursor > 0 {
 				m.cursor--
+				m.keys = buildKeys(m.selectedIsArchived())
 			}
 		case "enter":
 			if m.data != nil && len(m.data.SkillsSummary) > 0 {
@@ -114,12 +179,138 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			m.err = nil
 			return m, load(m.client, m.categoryID)
+		case "n":
+			f := common.NewSkillCreateForm(m.categoryID)
+			m.overlay = f
+			return m, f.Init()
+		case "e":
+			if m.data != nil && len(m.data.SkillsSummary) > 0 {
+				s := m.data.SkillsSummary[m.cursor]
+				f := common.NewSkillEditForm(s.ID, s.Name, m.categoryID, s.Color)
+				m.overlay = f
+				return m, f.Init()
+			}
+		case "A":
+			if m.data != nil && len(m.data.SkillsSummary) > 0 {
+				s := m.data.SkillsSummary[m.cursor]
+				var title, desc, tag string
+				if s.IsArchived {
+					title = "Unarchive skill?"
+					desc = fmt.Sprintf("Unarchive \"%s\"?", common.Truncate(s.Name, 40))
+					tag = "unarchive"
+				} else {
+					title = "Archive skill?"
+					desc = fmt.Sprintf("Archive \"%s\"? Its materials will become inactive.", common.Truncate(s.Name, 40))
+					tag = "archive"
+				}
+				f := common.NewConfirmForm(title, desc, tag)
+				m.overlay = f
+				return m, f.Init()
+			}
+		case "D":
+			if m.data != nil && len(m.data.SkillsSummary) > 0 {
+				s := m.data.SkillsSummary[m.cursor]
+				if !s.IsArchived {
+					return m, func() tea.Msg {
+						return common.ToastMsg{Text: "Archive the skill first before deleting.", IsError: true}
+					}
+				}
+				f := common.NewConfirmForm(
+					"Delete skill?",
+					fmt.Sprintf("Permanently delete \"%s\" and all its materials?", common.Truncate(s.Name, 40)),
+					"delete",
+				)
+				m.overlay = f
+				return m, f.Init()
+			}
 		}
 	}
 	return m, nil
 }
 
+// skillCount returns the number of skills in the data (safe on nil).
+func skillCount(d *model.CategoryDetail) int {
+	if d == nil {
+		return 0
+	}
+	return len(d.SkillsSummary)
+}
+
+// selectedIsArchived reports whether the highlighted skill is archived.
+func (m Model) selectedIsArchived() bool {
+	if m.data == nil || len(m.data.SkillsSummary) == 0 || m.cursor >= len(m.data.SkillsSummary) {
+		return false
+	}
+	return m.data.SkillsSummary[m.cursor].IsArchived
+}
+
+// submitSkillForm runs the create/update API call after form completion.
+func submitSkillForm(c *api.Client, categoryID string, sf common.SkillForm) tea.Cmd {
+	return func() tea.Msg {
+		var err error
+		if sf.IsEdit() {
+			err = c.UpdateSkill(sf.EditID(), sf.Name(), categoryID, sf.Color())
+		} else {
+			err = c.CreateSkill(sf.Name(), categoryID, sf.Color())
+		}
+		if err != nil {
+			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
+		}
+		data, loadErr := c.GetCategoryData(categoryID)
+		if loadErr != nil {
+			action := "created"
+			if sf.IsEdit() {
+				action = "updated"
+			}
+			return common.ToastMsg{Text: "Skill " + action + " (refresh to see changes)"}
+		}
+		return dataLoadedMsg{data: data}
+	}
+}
+
+// submitSkillConfirm runs archive/unarchive/delete after confirmation.
+func submitSkillConfirm(c *api.Client, d *model.CategoryDetail, cursor int, tag string) tea.Cmd {
+	return func() tea.Msg {
+		if d == nil || cursor >= len(d.SkillsSummary) {
+			return nil
+		}
+		s := d.SkillsSummary[cursor]
+		categoryID := d.Category.ID
+
+		var err error
+		var successText string
+		switch tag {
+		case "archive":
+			err = c.ArchiveSkill(s.ID)
+			successText = fmt.Sprintf("Archived \"%s\"", common.Truncate(s.Name, 30))
+		case "unarchive":
+			err = c.UnarchiveSkill(s.ID)
+			successText = fmt.Sprintf("Unarchived \"%s\"", common.Truncate(s.Name, 30))
+		case "delete":
+			err = c.DeleteSkill(s.ID)
+			successText = fmt.Sprintf("Deleted \"%s\"", common.Truncate(s.Name, 30))
+		default:
+			return nil
+		}
+
+		if err != nil {
+			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
+		}
+		_ = successText
+
+		data, loadErr := c.GetCategoryData(categoryID)
+		if loadErr != nil {
+			return common.ToastMsg{Text: successText + " (refresh to see changes)"}
+		}
+		return dataLoadedMsg{data: data}
+	}
+}
+
 func (m Model) View() string {
+	if m.overlay != nil {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())
+	}
+
 	if m.loading {
 		return common.SpinnerView(m.spinner)
 	}

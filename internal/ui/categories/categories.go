@@ -33,6 +33,7 @@ type Model struct {
 	spinner    spinner.Model
 	help       help.Model
 	keys       common.SimpleKeyMap
+	overlay    tea.Model
 }
 
 func New(client *api.Client) Model {
@@ -41,13 +42,28 @@ func New(client *api.Client) Model {
 		loading: true,
 		spinner: common.NewSpinner(),
 		help:    common.NewHelp(),
-		keys: common.SimpleKeyMap{Bindings: []common.Binding{
-			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
-			common.KB("enter", "open"),
-			common.KB("r", "refresh"),
-			common.KB("esc", "back"),
-		}},
+		keys:    buildKeys(false),
 	}
+}
+
+func buildKeys(hasArchived bool) common.SimpleKeyMap {
+	bindings := []common.Binding{
+		common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
+		common.KB("enter", "open"),
+		common.KB("n", "new"),
+		common.KB("e", "edit"),
+	}
+	if hasArchived {
+		bindings = append(bindings, common.KB("A", "unarchive"))
+	} else {
+		bindings = append(bindings, common.KB("A", "archive"))
+	}
+	bindings = append(bindings,
+		common.KB("D", "delete (archived)"),
+		common.KB("r", "refresh"),
+		common.KB("esc", "back"),
+	)
+	return common.SimpleKeyMap{Bindings: bindings}
 }
 
 func load(c *api.Client) tea.Cmd {
@@ -65,6 +81,53 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// ── overlay routing ──────────────────────────────────────────────────────
+	if m.overlay != nil {
+		if k, ok := msg.(tea.KeyMsg); ok && k.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+
+		updated, cmd := m.overlay.Update(msg)
+		m.overlay = updated
+
+		switch msg := msg.(type) {
+		case common.CategoryFormDoneMsg:
+			m.overlay = nil
+			if !msg.Cancelled {
+				if cf, ok := updated.(common.CategoryForm); ok {
+					return m, tea.Batch(submitCategoryForm(m.client, cf), func() tea.Msg {
+						return nil
+					})
+				}
+			}
+			return m, cmd
+
+		case common.ConfirmDoneMsg:
+			m.overlay = nil
+			if msg.Confirmed {
+				return m, tea.Batch(submitConfirm(m.client, m.categories, m.cursor, msg.Tag), func() tea.Msg {
+					return nil
+				})
+			}
+			return m, cmd
+
+		case categoriesLoadedMsg:
+			m.categories = msg.data
+			m.loading = false
+			if m.cursor >= len(m.categories) && m.cursor > 0 {
+				m.cursor = len(m.categories) - 1
+			}
+			m.keys = buildKeys(m.selectedIsArchived())
+			return m, nil
+
+		case common.ToastMsg:
+			return m, func() tea.Msg { return msg }
+		}
+
+		return m, cmd
+	}
+
+	// ── normal update ────────────────────────────────────────────────────────
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -74,6 +137,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case categoriesLoadedMsg:
 		m.categories = msg.data
 		m.loading = false
+		if m.cursor >= len(m.categories) && m.cursor > 0 {
+			m.cursor = len(m.categories) - 1
+		}
+		m.keys = buildKeys(m.selectedIsArchived())
 
 	case common.ErrMsg:
 		m.err = msg.Err
@@ -93,10 +160,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "j", "down":
 			if m.cursor < len(m.categories)-1 {
 				m.cursor++
+				m.keys = buildKeys(m.selectedIsArchived())
 			}
 		case "k", "up":
 			if m.cursor > 0 {
 				m.cursor--
+				m.keys = buildKeys(m.selectedIsArchived())
 			}
 		case "enter":
 			if len(m.categories) > 0 {
@@ -107,12 +176,132 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			m.err = nil
 			return m, load(m.client)
+		case "n":
+			f := common.NewCategoryCreateForm()
+			m.overlay = f
+			return m, f.Init()
+		case "e":
+			if len(m.categories) > 0 {
+				cat := m.categories[m.cursor]
+				f := common.NewCategoryEditForm(cat.ID, cat.Name, cat.Color)
+				m.overlay = f
+				return m, f.Init()
+			}
+		case "A":
+			if len(m.categories) > 0 {
+				cat := m.categories[m.cursor]
+				var title, desc, tag string
+				if cat.IsArchived {
+					title = "Unarchive category?"
+					desc = fmt.Sprintf("Unarchive \"%s\"?", common.Truncate(cat.Name, 40))
+					tag = "unarchive"
+				} else {
+					title = "Archive category?"
+					desc = fmt.Sprintf("Archive \"%s\"? All its skills will also be archived.", common.Truncate(cat.Name, 40))
+					tag = "archive"
+				}
+				f := common.NewConfirmForm(title, desc, tag)
+				m.overlay = f
+				return m, f.Init()
+			}
+		case "D":
+			if len(m.categories) > 0 {
+				cat := m.categories[m.cursor]
+				if !cat.IsArchived {
+					return m, func() tea.Msg {
+						return common.ToastMsg{Text: "Archive the category first before deleting.", IsError: true}
+					}
+				}
+				f := common.NewConfirmForm(
+					"Delete category?",
+					fmt.Sprintf("Permanently delete \"%s\" and all its skills?", common.Truncate(cat.Name, 40)),
+					"delete",
+				)
+				m.overlay = f
+				return m, f.Init()
+			}
 		}
 	}
 	return m, nil
 }
 
+// selectedIsArchived returns true if the currently highlighted category is archived.
+func (m Model) selectedIsArchived() bool {
+	if len(m.categories) == 0 || m.cursor >= len(m.categories) {
+		return false
+	}
+	return m.categories[m.cursor].IsArchived
+}
+
+// submitCategoryForm runs the create or update API call after form completion.
+func submitCategoryForm(c *api.Client, cf common.CategoryForm) tea.Cmd {
+	return func() tea.Msg {
+		var err error
+		if cf.IsEdit() {
+			err = c.UpdateCategory(cf.EditID(), cf.Name(), cf.Color())
+		} else {
+			err = c.CreateCategory(cf.Name(), cf.Color())
+		}
+		if err != nil {
+			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
+		}
+		action := "created"
+		if cf.IsEdit() {
+			action = "updated"
+		}
+		data, loadErr := c.GetAllCategories()
+		if loadErr != nil {
+			return common.ToastMsg{Text: "Category " + action + " (refresh to see changes)", IsError: false}
+		}
+		return categoriesLoadedMsg{data: data}
+	}
+}
+
+// submitConfirm runs the archive/unarchive/delete API call after confirmation.
+func submitConfirm(c *api.Client, cats []model.Category, cursor int, tag string) tea.Cmd {
+	return func() tea.Msg {
+		if cursor >= len(cats) {
+			return nil
+		}
+		id := cats[cursor].ID
+		name := cats[cursor].Name
+
+		var err error
+		var successText string
+		switch tag {
+		case "archive":
+			err = c.ArchiveCategory(id)
+			successText = fmt.Sprintf("Archived \"%s\"", common.Truncate(name, 30))
+		case "unarchive":
+			err = c.UnarchiveCategory(id)
+			successText = fmt.Sprintf("Unarchived \"%s\"", common.Truncate(name, 30))
+		case "delete":
+			err = c.DeleteCategory(id)
+			successText = fmt.Sprintf("Deleted \"%s\"", common.Truncate(name, 30))
+		default:
+			return nil
+		}
+
+		if err != nil {
+			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
+		}
+
+		data, loadErr := c.GetAllCategories()
+		if loadErr != nil {
+			return common.ToastMsg{Text: successText + " (refresh to see changes)"}
+		}
+		_ = successText
+		// Return both toast and reload by sending reload; toast fires separately below.
+		// We batch via a second message in the caller — here just reload.
+		return categoriesLoadedMsg{data: data}
+	}
+}
+
 func (m Model) View() string {
+	if m.overlay != nil {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())
+	}
+
 	if m.loading {
 		return common.SpinnerView(m.spinner)
 	}

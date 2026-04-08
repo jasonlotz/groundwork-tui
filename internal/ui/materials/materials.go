@@ -6,21 +6,25 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/progress"
+	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
 )
 
 type materialsLoadedMsg struct{ data []model.Material }
 
-// LogFromMaterialMsg is sent when the user presses l to log progress on the selected material.
-type LogFromMaterialMsg struct {
-	MaterialID   string
-	MaterialName string
+// preloadMsg carries skills + types fetched before opening the material form.
+type preloadMsg struct {
+	skills []model.Skill
+	types  []model.MaterialType
+	// openEdit is set when the preload was triggered by "e" — carries the material to edit.
+	openEdit *model.Material
 }
 
 // OpenMaterialMsg is sent when the user presses enter on the selected material.
@@ -38,9 +42,10 @@ type Model struct {
 	width      int
 	height     int
 	spinner    spinner.Model
-	bar        progress.Model
+	bar        bbprogress.Model
 	help       help.Model
 	keys       common.SimpleKeyMap
+	overlay    tea.Model
 }
 
 func New(client *api.Client) Model {
@@ -55,6 +60,9 @@ func New(client *api.Client) Model {
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "detail"),
 			common.KB("l", "log progress"),
+			common.KB("n", "new"),
+			common.KB("e", "edit"),
+			common.KB("D", "delete"),
 			common.KB("a", "toggle active"),
 			common.KB("r", "refresh"),
 			common.KB("esc", "back"),
@@ -72,11 +80,77 @@ func load(c *api.Client, activeOnly bool) tea.Cmd {
 	}
 }
 
+// preload fetches skills and types needed to populate the material form.
+// openEdit is non-nil when we're editing an existing material.
+func preload(c *api.Client, openEdit *model.Material) tea.Cmd {
+	return func() tea.Msg {
+		skills, err := c.GetAllSkills()
+		if err != nil {
+			return common.ErrMsg{Err: err}
+		}
+		types, err := c.GetAllMaterialTypes()
+		if err != nil {
+			return common.ErrMsg{Err: err}
+		}
+		return preloadMsg{skills: skills, types: types, openEdit: openEdit}
+	}
+}
+
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(load(m.client, m.activeOnly), m.spinner.Tick)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// ── overlay routing ──────────────────────────────────────────────────────
+	if m.overlay != nil {
+		if k, ok := msg.(tea.KeyMsg); ok && (k.String() == "ctrl+c" || k.String() == "q") {
+			return m, tea.Quit
+		}
+
+		updated, cmd := m.overlay.Update(msg)
+		m.overlay = updated
+
+		switch msg := msg.(type) {
+		case progress.LogDoneMsg:
+			m.overlay = nil
+			if !msg.Cancelled {
+				return m, tea.Batch(
+					load(m.client, m.activeOnly),
+					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
+				)
+			}
+			return m, nil
+
+		case common.MaterialFormDoneMsg:
+			m.overlay = nil
+			if !msg.Cancelled {
+				if mf, ok := updated.(common.MaterialForm); ok {
+					return m, submitMaterialForm(m.client, m.activeOnly, mf)
+				}
+			}
+			return m, nil
+
+		case common.ConfirmDoneMsg:
+			m.overlay = nil
+			if msg.Confirmed && msg.Tag == "delete" {
+				return m, deleteMaterial(m.client, m.filtered, m.cursor, m.activeOnly)
+			}
+			return m, nil
+
+		case materialsLoadedMsg:
+			m.materials = msg.data
+			m.resetCursor()
+			m.loading = false
+			return m, nil
+
+		case common.ToastMsg:
+			return m, func() tea.Msg { return msg }
+		}
+
+		return m, cmd
+	}
+
+	// ── normal update ────────────────────────────────────────────────────────
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -87,6 +161,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.materials = msg.data
 		m.resetCursor()
 		m.loading = false
+
+	case preloadMsg:
+		// Preload completed — open the form overlay.
+		var f common.MaterialForm
+		if msg.openEdit != nil {
+			f = common.NewMaterialEditForm(msg.openEdit.ID, *msg.openEdit, msg.skills, msg.types)
+		} else {
+			f = common.NewMaterialCreateForm(msg.skills, msg.types)
+		}
+		m.overlay = f
+		return m, f.Init()
 
 	case common.ErrMsg:
 		m.err = msg.Err
@@ -124,9 +209,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.filtered) > 0 {
 				mat := m.filtered[m.cursor]
 				if mat.Status == model.StatusActive {
-					return m, func() tea.Msg {
-						return LogFromMaterialMsg{MaterialID: mat.ID, MaterialName: mat.Name}
-					}
+					lf := progress.NewLogForm(m.client, mat.ID, mat.Name)
+					m.overlay = lf
+					return m, lf.Init()
 				}
 				return m, func() tea.Msg {
 					return common.ToastMsg{Text: "Only active materials can be logged.", IsError: true}
@@ -136,6 +221,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.filtered) > 0 {
 				id := m.filtered[m.cursor].ID
 				return m, func() tea.Msg { return OpenMaterialMsg{MaterialID: id} }
+			}
+		case "n":
+			// Preload skills + types, then open create form.
+			return m, preload(m.client, nil)
+		case "e":
+			if len(m.filtered) > 0 {
+				mat := m.filtered[m.cursor]
+				return m, preload(m.client, &mat)
+			}
+		case "D":
+			if len(m.filtered) > 0 {
+				mat := m.filtered[m.cursor]
+				f := common.NewConfirmForm(
+					"Delete material?",
+					fmt.Sprintf("Permanently delete \"%s\" and all its progress logs?", common.Truncate(mat.Name, 40)),
+					"delete",
+				)
+				m.overlay = f
+				return m, f.Init()
 			}
 		}
 	}
@@ -149,7 +253,77 @@ func (m *Model) resetCursor() {
 	}
 }
 
+// submitMaterialForm runs the create/update API call after form completion.
+func submitMaterialForm(c *api.Client, activeOnly bool, mf common.MaterialForm) tea.Cmd {
+	return func() tea.Msg {
+		r := mf.Result()
+		var err error
+		if mf.IsEdit() {
+			err = c.UpdateMaterial(api.MaterialUpdateResult{
+				ID:            mf.EditID(),
+				Name:          r.Name,
+				SkillID:       r.SkillID,
+				TypeID:        r.TypeID,
+				UnitType:      r.UnitType,
+				TotalUnits:    r.TotalUnits,
+				URL:           r.URL,
+				Notes:         r.Notes,
+				StartDate:     r.StartDate,
+				CompletedDate: r.CompletedDate,
+				WeeklyGoal:    r.WeeklyGoal,
+			})
+		} else {
+			err = c.CreateMaterial(api.MaterialCreateResult{
+				Name:          r.Name,
+				SkillID:       r.SkillID,
+				TypeID:        r.TypeID,
+				UnitType:      r.UnitType,
+				TotalUnits:    r.TotalUnits,
+				URL:           r.URL,
+				Notes:         r.Notes,
+				StartDate:     r.StartDate,
+				CompletedDate: r.CompletedDate,
+				WeeklyGoal:    r.WeeklyGoal,
+			})
+		}
+		if err != nil {
+			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
+		}
+		action := "created"
+		if mf.IsEdit() {
+			action = "updated"
+		}
+		data, loadErr := c.GetAllMaterials(activeOnly)
+		if loadErr != nil {
+			return common.ToastMsg{Text: "Material " + action + " (refresh to see changes)"}
+		}
+		return materialsLoadedMsg{data: data}
+	}
+}
+
+// deleteMaterial runs the delete API call after confirmation.
+func deleteMaterial(c *api.Client, filtered []model.Material, cursor int, activeOnly bool) tea.Cmd {
+	return func() tea.Msg {
+		if cursor >= len(filtered) {
+			return nil
+		}
+		mat := filtered[cursor]
+		if err := c.DeleteMaterial(mat.ID); err != nil {
+			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
+		}
+		data, loadErr := c.GetAllMaterials(activeOnly)
+		if loadErr != nil {
+			return common.ToastMsg{Text: fmt.Sprintf("Deleted \"%s\" (refresh to see changes)", common.Truncate(mat.Name, 30))}
+		}
+		return materialsLoadedMsg{data: data}
+	}
+}
+
 func (m Model) View() string {
+	if m.overlay != nil {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())
+	}
+
 	if m.loading {
 		return common.SpinnerView(m.spinner)
 	}
@@ -238,7 +412,6 @@ func (m Model) renderRow(i int) string {
 	// Weekly goal indicator (only for active)
 	weeklyInfo := ""
 	if mat.Status == model.StatusActive && mat.WeeklyUnitGoal != nil && *mat.WeeklyUnitGoal > 0 {
-		// We don't have unitsThisWeek on Material; just show the goal
 		weeklyInfo = "  " + common.MutedStyle.Render(fmt.Sprintf("goal: %d/%s", *mat.WeeklyUnitGoal, mat.UnitType.Label()))
 	}
 

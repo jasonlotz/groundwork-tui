@@ -24,22 +24,11 @@ const (
 	screenMaterials
 	screenSkills
 	screenProgress
-	screenLogForm
 	screenCategories
 	screenCategoryDetail
 	screenSkillDetail
 	screenMaterialDetail
 )
-
-// openLogForm switches to the log form screen for the given material.
-// returnTo is the screen state to restore (and reload) after the form completes.
-func (m *Model) openLogForm(materialID, materialName string, returnTo *screenState) tea.Cmd {
-	lf := progress.NewLogForm(m.client, materialID, materialName)
-	m.logForm = &lf
-	m.logReturnTo = returnTo
-	m.pushScreen(screenLogForm)
-	return m.logForm.Init()
-}
 
 // screenState holds the current screen + its associated model pointer so we can
 // push/pop a navigation stack.
@@ -59,8 +48,6 @@ type Model struct {
 	materialsList  materials.Model
 	skillsList     skills.Model
 	progressList   progress.Model
-	logForm        *progress.LogForm
-	logReturnTo    *screenState // where to go after log form
 	categoriesList categories.Model
 	categoryDetail *categorydetail.Model
 	skillDetail    *skilldetail.Model
@@ -99,7 +86,6 @@ func (m *Model) pushScreen(s screen) {
 }
 
 // popScreen returns to the previous screen on the stack (or dashboard if empty).
-// Returns the init cmd needed for the screen being returned to, if any.
 func (m *Model) popScreen() tea.Cmd {
 	if len(m.navStack) == 0 {
 		m.current = screenDashboard
@@ -135,10 +121,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dashboard.NavigateMsg:
 		return m.handleDashboardNav(msg)
 
-	// --- dashboard: log progress on selected material ---
-	case dashboard.LogFromDashboardMsg:
-		return m, m.openLogForm(msg.MaterialID, msg.MaterialName, nil)
-
 	// --- dashboard: open material detail from active materials list ---
 	case dashboard.OpenMaterialMsg:
 		md := materialdetail.New(m.client, msg.MaterialID)
@@ -167,67 +149,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pushScreen(screenSkillDetail)
 		return m, m.skillDetail.Init()
 
-	// --- skill detail: open material detail or log ---
+	// --- skill detail: open material detail ---
 	case skilldetail.OpenMaterialMsg:
 		md := materialdetail.New(m.client, msg.MaterialID)
 		m.materialDetail = &md
 		m.pushScreen(screenMaterialDetail)
 		return m, m.materialDetail.Init()
 
-	case skilldetail.LogFromSkillMsg:
-		returnState := &screenState{id: m.current, skillDetail: m.skillDetail}
-		return m, m.openLogForm(msg.MaterialID, msg.MaterialName, returnState)
-
-	// --- material detail: log ---
-	case materialdetail.LogFromDetailMsg:
-		returnState := &screenState{
-			id:             m.current,
-			materialDetail: m.materialDetail,
-			skillDetail:    m.skillDetail,
-			categoryDetail: m.categoryDetail,
-		}
-		return m, m.openLogForm(msg.MaterialID, msg.MaterialName, returnState)
-
-	// --- materials list: open detail or log ---
+	// --- materials list: open detail ---
 	case materials.OpenMaterialMsg:
 		md := materialdetail.New(m.client, msg.MaterialID)
 		m.materialDetail = &md
 		m.pushScreen(screenMaterialDetail)
 		return m, m.materialDetail.Init()
-
-	case materials.LogFromMaterialMsg:
-		return m, m.openLogForm(msg.MaterialID, msg.MaterialName, nil)
-
-	// --- open log form ---
-	case progress.LogDoneMsg:
-		m.popScreen()
-		if !msg.Cancelled {
-			m.toast = "Progress logged!"
-			m.toastIsErr = false
-			// If we came from a detail screen, reload it.
-			if m.logReturnTo != nil {
-				rt := m.logReturnTo
-				m.logReturnTo = nil
-				m.current = rt.id
-				m.categoryDetail = rt.categoryDetail
-				m.skillDetail = rt.skillDetail
-				m.materialDetail = rt.materialDetail
-				// Re-init the detail screen to refresh data.
-				switch rt.id {
-				case screenMaterialDetail:
-					if m.materialDetail != nil {
-						return m, m.materialDetail.Init()
-					}
-				case screenSkillDetail:
-					if m.skillDetail != nil {
-						return m, m.skillDetail.Init()
-					}
-				}
-				return m, nil
-			}
-		}
-		m.logReturnTo = nil
-		return m, nil
 	}
 
 	// Clear toast on any key.
@@ -256,15 +190,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updated, cmd := m.progressList.Update(msg)
 		m.progressList = updated.(progress.Model)
 		return m, cmd
-
-	case screenLogForm:
-		if m.logForm != nil {
-			updated, cmd := m.logForm.Update(msg)
-			if lf, ok := updated.(progress.LogForm); ok {
-				m.logForm = &lf
-			}
-			return m, cmd
-		}
 
 	case screenCategories:
 		updated, cmd := m.categoriesList.Update(msg)
@@ -332,10 +257,6 @@ func (m Model) View() string {
 		content = m.skillsList.View()
 	case screenProgress:
 		content = m.progressList.View()
-	case screenLogForm:
-		if m.logForm != nil {
-			content = m.logForm.View()
-		}
 	case screenCategories:
 		content = m.categoriesList.View()
 	case screenCategoryDetail:

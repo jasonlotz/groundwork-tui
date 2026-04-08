@@ -3,6 +3,7 @@ package common
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -58,6 +59,13 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(ColorBorder).
 			Padding(0, 1)
+
+	// PopupStyle is the border/padding style for inline overlay popups (e.g. log form).
+	PopupStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(ColorPrimary).
+			Padding(1, 2).
+			Width(60)
 
 	HelpStyle = lipgloss.NewStyle().
 			Foreground(ColorMuted).
@@ -275,4 +283,35 @@ func RenderWeeklyBar(width int, pct, pacePct float64) string {
 		}
 	}
 	return buf.String()
+}
+
+// ValidateDate returns an error if s is not a valid YYYY-MM-DD date.
+func ValidateDate(s string) error {
+	if s == "" {
+		return fmt.Errorf("date is required")
+	}
+	if _, err := time.Parse("2006-01-02", s); err != nil {
+		return fmt.Errorf("must be YYYY-MM-DD (e.g. %s)", time.Now().Format("2006-01-02"))
+	}
+	return nil
+}
+
+// ValidateUnits returns an error if s is not a positive number.
+func ValidateUnits(s string) error {
+	if s == "" {
+		return fmt.Errorf("units is required")
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return fmt.Errorf("must be a number (e.g. 1, 2.5)")
+	}
+	if v <= 0 {
+		return fmt.Errorf("must be greater than 0")
+	}
+	return nil
+}
+
+// TodayString returns today's date as a YYYY-MM-DD string.
+func TodayString() string {
+	return time.Now().Format("2006-01-02")
 }
