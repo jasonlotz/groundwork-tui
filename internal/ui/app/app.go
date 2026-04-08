@@ -106,6 +106,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		// Forward size to all persistent screen models so they know their
+		// dimensions even if they weren't active when the message first arrived.
+		if updated, _ := m.dashboard.Update(msg); updated != nil {
+			m.dashboard = updated.(dashboard.Model)
+		}
+		if updated, _ := m.materialsList.Update(msg); updated != nil {
+			m.materialsList = updated.(materials.Model)
+		}
+		if updated, _ := m.skillsList.Update(msg); updated != nil {
+			m.skillsList = updated.(skills.Model)
+		}
+		if updated, _ := m.progressList.Update(msg); updated != nil {
+			m.progressList = updated.(progress.Model)
+		}
+		if updated, _ := m.categoriesList.Update(msg); updated != nil {
+			m.categoriesList = updated.(categories.Model)
+		}
 
 	case common.ToastMsg:
 		m.toast = msg.Text

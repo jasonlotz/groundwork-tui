@@ -165,8 +165,8 @@ func (m Model) View() string {
 			}
 		}
 
-		// title(1) + marginBottom(1) + blank(1) + count(1) + help(1) + marginTop(1) = 6
-		visibleHeight := m.height - 6
+		// RenderTitle=3 + blank=1 + blank-before-count=1 + count=1 + blank=1 + help=2 = 9 overhead; each row is 1 line
+		visibleHeight := m.height - 9
 		if visibleHeight < 5 {
 			visibleHeight = 5
 		}

@@ -215,8 +215,8 @@ func (m Model) View() string {
 	if len(m.activeMaterials) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No active materials.\n"))
 	} else {
-		// title(2) + blank(1) + kpis(3) + section(2) + help(2) = 10; each item is 4 lines
-		visibleItems := (m.height - 10) / 4
+		// RenderTitle=3 + blank=1 + KPIs=3 + blank=1 + Section=2 + blank=1 + help=2 = 13 overhead; each item is 4 lines
+		visibleItems := (m.height - 13) / 4
 		if visibleItems < 2 {
 			visibleItems = 2
 		}

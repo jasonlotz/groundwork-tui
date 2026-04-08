@@ -316,8 +316,8 @@ func (m Model) View() string {
 	if len(m.categories) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No categories found.\n"))
 	} else {
-		// title(2) + blank(1) + table header(1) + separator(1) + help(2) = 7
-		visibleHeight := m.height - 7
+		// RenderTitle=3 + blank=1 + table-header=1 + table-sep=1 + blank=1 + help=2 = 9 overhead (data rows only)
+		visibleHeight := m.height - 9
 		if visibleHeight < 3 {
 			visibleHeight = 3
 		}

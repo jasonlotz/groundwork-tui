@@ -118,8 +118,8 @@ func (m Model) View() string {
 	if len(m.logs) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No progress entries yet.\n"))
 	} else {
-		// title(2) + blank(1) + header row(1) + help(2) = 6
-		visibleHeight := m.height - 6
+		// RenderTitle=3 + blank=1 + table-header=1 + table-sep=1 + blank=1 + help=2 = 9 overhead
+		visibleHeight := m.height - 9
 		if visibleHeight < 5 {
 			visibleHeight = 5
 		}

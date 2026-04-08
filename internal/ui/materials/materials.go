@@ -344,8 +344,8 @@ func (m Model) View() string {
 	if len(m.filtered) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No materials found.\n"))
 	} else {
-		// title(1) + marginBottom(1) + blank(1) + help(1) + marginTop(1) = 5; each item is 2 lines
-		visibleItems := (m.height - 5) / 2
+		// RenderTitle=2 + blank=1 + help(marginTop+line)=2 = 5 overhead; each item is 3 lines (2 content + 1 blank)
+		visibleItems := (m.height - 5) / 3
 		if visibleItems < 3 {
 			visibleItems = 3
 		}
