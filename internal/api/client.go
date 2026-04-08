@@ -14,13 +14,34 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 )
+
+// debugLog writes a message to ~/.cache/groundwork-tui/debug.log.
+// Errors opening/writing the file are silently ignored so they never
+// surface to the user.
+func debugLog(format string, args ...any) {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return
+	}
+	logDir := filepath.Join(dir, "groundwork-tui")
+	_ = os.MkdirAll(logDir, 0o700)
+	f, err := os.OpenFile(filepath.Join(logDir, "debug.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	log.New(f, "", log.LstdFlags).Printf(format, args...)
+}
 
 // Client is a typed tRPC HTTP client.
 type Client struct {
@@ -42,6 +63,23 @@ func New(baseURL, apiKey string) *Client {
 
 type trpcRequest struct {
 	JSON any `json:"json"`
+}
+
+// trpcRequestWithMeta is used when the input contains Date fields that must be
+// described in SuperJSON's meta.values map so tRPC can reconstruct them as JS
+// Date objects on the server side.
+//
+// SuperJSON wire format for a Date:
+//
+//	{"json": {"startDate": "2025-01-01T00:00:00.000Z"},
+//	 "meta": {"values": {"startDate": ["Date"]}}}
+type trpcRequestWithMeta struct {
+	JSON any                `json:"json"`
+	Meta *trpcSuperJSONMeta `json:"meta,omitempty"`
+}
+
+type trpcSuperJSONMeta struct {
+	Values map[string][]string `json:"values"`
 }
 
 type trpcResponse[T any] struct {
@@ -73,6 +111,7 @@ func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 		return nil, fmt.Errorf("unauthorized — check your API key")
 	}
 	if resp.StatusCode >= 400 {
+		debugLog("HTTP %d %s: %s", resp.StatusCode, req.URL.Path, string(raw))
 		return nil, fmt.Errorf("server error %d: %s", resp.StatusCode, string(raw))
 	}
 	return raw, nil
@@ -136,6 +175,42 @@ func mutation[T any](c *Client, procedure string, input any) (T, error) {
 		return zero, err
 	}
 	return parseResponse[T](raw)
+}
+
+// mutationWithMeta is like mutation but accepts a trpcRequestWithMeta so that
+// SuperJSON meta (e.g. date type hints) is included in the request body.
+func mutationWithMeta[T any](c *Client, procedure string, body trpcRequestWithMeta) (T, error) {
+	var zero T
+
+	b, err := json.Marshal(body)
+	if err != nil {
+		return zero, fmt.Errorf("marshal request: %w", err)
+	}
+
+	endpoint := fmt.Sprintf("%s/api/trpc/%s", c.baseURL, procedure)
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(b))
+	if err != nil {
+		return zero, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	raw, err := c.doRequest(req)
+	if err != nil {
+		return zero, err
+	}
+	return parseResponse[T](raw)
+}
+
+// superJSONDates builds a trpcRequestWithMeta wrapping input, adding a
+// meta.values entry for each non-empty date field path so tRPC/SuperJSON
+// reconstructs them as JS Date objects on the server.
+// datePaths are the dot-notation key paths of date fields (e.g. "startDate").
+func superJSONDates(input any, datePaths ...string) trpcRequestWithMeta {
+	meta := &trpcSuperJSONMeta{Values: make(map[string][]string)}
+	for _, p := range datePaths {
+		meta.Values[p] = []string{"Date"}
+	}
+	return trpcRequestWithMeta{JSON: input, Meta: meta}
 }
 
 // --- typed procedures ---
@@ -420,11 +495,21 @@ func (c *Client) CreateMaterial(r MaterialCreateResult) error {
 		TotalUnits:     r.TotalUnits,
 		URL:            r.URL,
 		Notes:          r.Notes,
-		StartDate:      r.StartDate,
-		CompletedDate:  r.CompletedDate,
 		WeeklyUnitGoal: r.WeeklyGoal,
 	}
-	_, err := mutation[struct{}](c, "material.create", input)
+	// Date fields need SuperJSON meta so tRPC deserializes them as JS Dates.
+	var datePaths []string
+	if r.StartDate != nil {
+		s := *r.StartDate + "T00:00:00.000Z"
+		input.StartDate = &s
+		datePaths = append(datePaths, "startDate")
+	}
+	if r.CompletedDate != nil {
+		s := *r.CompletedDate + "T00:00:00.000Z"
+		input.CompletedDate = &s
+		datePaths = append(datePaths, "completedDate")
+	}
+	_, err := mutationWithMeta[struct{}](c, "material.create", superJSONDates(input, datePaths...))
 	return err
 }
 
@@ -468,11 +553,20 @@ func (c *Client) UpdateMaterial(r MaterialUpdateResult) error {
 		TotalUnits:     &r.TotalUnits,
 		URL:            r.URL,
 		Notes:          r.Notes,
-		StartDate:      r.StartDate,
-		CompletedDate:  r.CompletedDate,
 		WeeklyUnitGoal: r.WeeklyGoal,
 	}
-	_, err := mutation[struct{}](c, "material.update", input)
+	var datePaths []string
+	if r.StartDate != nil {
+		s := *r.StartDate + "T00:00:00.000Z"
+		input.StartDate = &s
+		datePaths = append(datePaths, "startDate")
+	}
+	if r.CompletedDate != nil {
+		s := *r.CompletedDate + "T00:00:00.000Z"
+		input.CompletedDate = &s
+		datePaths = append(datePaths, "completedDate")
+	}
+	_, err := mutationWithMeta[struct{}](c, "material.update", superJSONDates(input, datePaths...))
 	return err
 }
 
