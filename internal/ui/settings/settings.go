@@ -34,6 +34,7 @@ func New() Model {
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "select theme"),
+			common.KB("esc", "back"),
 		}},
 	}
 }
@@ -48,6 +49,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "q", "esc":
+			return m, func() tea.Msg { return common.GoBackMsg{} }
 		case "ctrl+c":
 			return m, tea.Quit
 		case "j", "down":
