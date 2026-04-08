@@ -127,6 +127,30 @@ func RenderTitle(s string, width int) string {
 	return fmt.Sprintf("%s\n%s", title, rule)
 }
 
+// RenderTitleWithTag renders a title with an inline tag on the same line,
+// followed by a horizontal rule. tag may be empty.
+func RenderTitleWithTag(s, tag string, width int) string {
+	if width < 1 {
+		width = 40
+	}
+	// Build the title text without MarginBottom so the tag sits on the same line.
+	titleInline := lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render(s)
+	line := titleInline
+	if tag != "" {
+		line += "  " + tag
+	}
+	rule := titleRuleStyle.Render(strings.Repeat("─", width))
+	return fmt.Sprintf("%s\n%s", line, rule)
+}
+
+// RuleStyle returns a full-width horizontal rule string styled with the border color.
+func RuleStyle(width int) string {
+	if width < 1 {
+		width = 40
+	}
+	return titleRuleStyle.Render(strings.Repeat("─", width))
+}
+
 // NewProgressBar returns a bubbles/progress model styled with the project palette.
 // width is the total character width of the bar (excluding the percentage label).
 func NewProgressBar(width int) progress.Model {

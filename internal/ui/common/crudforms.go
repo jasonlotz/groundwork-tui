@@ -154,17 +154,19 @@ func (cf CategoryForm) View() string {
 
 // skillFormState holds bound form values behind stable pointers.
 type skillFormState struct {
-	name  string
-	color string
+	name       string
+	color      string
+	categoryID string // only used when picking category in create-from-flat-list flow
 }
 
 // SkillForm is a popup model for creating or editing a skill.
 type SkillForm struct {
-	form       *huh.Form
-	state      *skillFormState
-	categoryID string // fixed — skills always belong to one category in this context
-	isEdit     bool
-	editID     string
+	form         *huh.Form
+	state        *skillFormState
+	categoryID   string // fixed when creating from category detail; empty when using picker
+	hasCatPicker bool   // true when the form includes a category picker
+	isEdit       bool
+	editID       string
 }
 
 // NewSkillCreateForm returns a blank skill creation form for the given category.
@@ -174,6 +176,17 @@ func NewSkillCreateForm(categoryID string) SkillForm {
 		state:      st,
 		categoryID: categoryID,
 		form:       buildSkillForm(st, "New Skill"),
+	}
+}
+
+// NewSkillCreateFormWithCategories returns a skill creation form that includes
+// a category picker. Used from the flat skills list where there is no fixed category.
+func NewSkillCreateFormWithCategories(categories []model.Category) SkillForm {
+	st := &skillFormState{}
+	return SkillForm{
+		state:        st,
+		hasCatPicker: true,
+		form:         buildSkillFormWithCatPicker(st, categories, "New Skill"),
 	}
 }
 
@@ -215,6 +228,41 @@ func buildSkillForm(st *skillFormState, title string) *huh.Form {
 	).WithTheme(huh.ThemeDracula())
 }
 
+func buildSkillFormWithCatPicker(st *skillFormState, categories []model.Category, title string) *huh.Form {
+	catOptions := make([]huh.Option[string], len(categories))
+	for i, c := range categories {
+		catOptions[i] = huh.NewOption(c.Name, c.ID)
+	}
+	if len(catOptions) > 0 {
+		st.categoryID = catOptions[0].Value
+	}
+	return huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title(title).
+				Description("Name").
+				Placeholder("e.g. Go").
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("name is required")
+					}
+					return nil
+				}).
+				Value(&st.name),
+
+			huh.NewSelect[string]().
+				Title("Category").
+				Options(catOptions...).
+				Value(&st.categoryID),
+
+			huh.NewSelect[string]().
+				Title("Color (optional)").
+				Options(append([]huh.Option[string]{huh.NewOption("None", "")}, colorOptions...)...).
+				Value(&st.color),
+		),
+	).WithTheme(huh.ThemeDracula())
+}
+
 // IsEdit reports whether this form is editing an existing skill.
 func (sf SkillForm) IsEdit() bool { return sf.isEdit }
 
@@ -222,7 +270,13 @@ func (sf SkillForm) IsEdit() bool { return sf.isEdit }
 func (sf SkillForm) EditID() string { return sf.editID }
 
 // CategoryID returns the category ID for this skill.
-func (sf SkillForm) CategoryID() string { return sf.categoryID }
+// When the form has a category picker, this returns the user's selection.
+func (sf SkillForm) CategoryID() string {
+	if sf.hasCatPicker {
+		return sf.state.categoryID
+	}
+	return sf.categoryID
+}
 
 // Name returns the submitted name.
 func (sf SkillForm) Name() string { return sf.state.name }

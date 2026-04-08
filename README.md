@@ -108,6 +108,7 @@ To reconfigure, delete the config file and relaunch.
 | `e`         | Edit selected material        |
 | `D`         | Delete selected material      |
 | `a`         | Toggle active-only filter     |
+| `/`         | Search by name, skill, type   |
 | `r`         | Refresh                       |
 | `esc` / `q` | Back                          |
 
@@ -142,6 +143,7 @@ To reconfigure, delete the config file and relaunch.
 | ----------- | ---------------------------------------- |
 | `j` / `k`   | Navigate                                 |
 | `enter`     | Open skill                               |
+| `n`         | New skill                                |
 | `e`         | Edit selected skill                      |
 | `A`         | Archive / unarchive selected skill       |
 | `D`         | Delete selected skill (must be archived) |

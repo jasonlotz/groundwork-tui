@@ -254,6 +254,9 @@ func (m Model) selectedIsArchived() bool {
 	return m.data.SkillsSummary[m.cursor].IsArchived
 }
 
+// HasOverlay reports whether a form or confirm dialog is currently open.
+func (m Model) HasOverlay() bool { return m.overlay != nil }
+
 // submitSkillForm runs the create/update API call after form completion.
 func submitSkillForm(c *api.Client, categoryID string, sf common.SkillForm) tea.Cmd {
 	return func() tea.Msg {

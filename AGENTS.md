@@ -110,6 +110,7 @@ visibleItems := (m.height - overhead) / linesPerItem
 Overhead must account for every rendered line above and below the list. Key line counts:
 
 - `RenderTitle(s, w)` = **3 lines**: title text + implicit `MarginBottom(1)` + rule line. Always 3, never 1 or 2.
+- `RenderTitleWithTag(title, tag, w)` = **2 lines**: title + tag rendered inline (no `MarginBottom`), then rule line. Use this when you need a filter tag beside the title — appending text after `RenderTitle` puts it on the line _below_ due to the `MarginBottom(1)` on `TitleStyle`.
 - `HelpStyle` / `SectionStyle` both have `MarginTop(1)` = **2 lines** (margin + text).
 - An explicit `b.WriteString("\n")` = **1 line**.
 - **Tab bar** = **3 lines**: top-border row + label row + rule row. Add 3 to every screen's overhead.
@@ -119,6 +120,8 @@ Recount from the `View()` source every time you change layout; do not guess.
 ### Overlay pattern
 
 Screens store an `overlay tea.Model` field. When non-nil, `Update` routes all messages through the overlay and `View` renders it centered via `lipgloss.Place`. Done messages (`LogDoneMsg`, `CategoryFormDoneMsg`, `ConfirmDoneMsg`, etc.) clear the overlay and trigger a data reload.
+
+Every screen that can have an overlay must implement `HasOverlay() bool { return m.overlay != nil }`. The root `app.go` collects these via `inputActive()` to suppress global tab-switch hotkeys (`d/c/s/m/p`) while a form is open. If you add a new screen with an overlay, add its `HasOverlay()` check to `inputActive()` in `app.go`.
 
 ### Styles
 
@@ -133,6 +136,8 @@ tRPC 11 over HTTP:
 - Responses unwrapped from: `{"result": {"data": {"json": ...}}}`
 
 Two generic functions handle all calls: `query[T]` and `mutation[T]` in `internal/api/client.go`. To add a new API call, add the model struct to `internal/model/model.go` and a one-liner method to `client.go`.
+
+**Server-side filtering:** `GetAllSkills(includeArchived bool)` and `GetAllCategories(includeArchived bool)` pass the flag to the server — the server handles archive filtering, not the client. When the user toggles `showArchived` on a list screen, always re-fetch from the server (`load(m.client, m.showArchived)`) rather than filtering a local slice. `applyFilter()` on those screens is a pass-through (`m.filtered = m.items`) kept only for structural consistency.
 
 ### Color mapping
 

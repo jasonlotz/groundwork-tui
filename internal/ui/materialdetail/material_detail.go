@@ -80,7 +80,7 @@ func load(c *api.Client, materialID string) tea.Cmd {
 // preload fetches skills and types needed to populate the material edit form.
 func preload(c *api.Client) tea.Cmd {
 	return func() tea.Msg {
-		skills, err := c.GetAllSkills()
+		skills, err := c.GetAllSkills(false)
 		if err != nil {
 			return common.ErrMsg{Err: err}
 		}
@@ -284,6 +284,9 @@ func deleteMaterial(c *api.Client, materialID string) tea.Cmd {
 		return materialMutatedMsg{toast: "Material deleted.", navigateBack: true}
 	}
 }
+
+// HasOverlay reports whether a form or confirm dialog is currently open.
+func (m Model) HasOverlay() bool { return m.overlay != nil }
 
 func (m Model) View() string {
 	if m.overlay != nil {

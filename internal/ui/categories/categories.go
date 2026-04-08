@@ -70,9 +70,9 @@ func buildKeys(hasArchived bool, showArchived bool) common.SimpleKeyMap {
 	return common.SimpleKeyMap{Bindings: bindings}
 }
 
-func load(c *api.Client) tea.Cmd {
+func load(c *api.Client, includeArchived bool) tea.Cmd {
 	return func() tea.Msg {
-		data, err := c.GetAllCategories()
+		data, err := c.GetAllCategories(includeArchived)
 		if err != nil {
 			return common.ErrMsg{Err: err}
 		}
@@ -81,7 +81,7 @@ func load(c *api.Client) tea.Cmd {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(load(m.client), m.spinner.Tick)
+	return tea.Batch(load(m.client, m.showArchived), m.spinner.Tick)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -134,7 +134,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.keys = buildKeys(m.selectedIsArchived(), m.showArchived)
 
 	case common.CategoryChangedMsg:
-		return m, load(m.client)
+		return m, load(m.client, m.showArchived)
 
 	case categoryMutatedMsg:
 		return m, tea.Batch(
@@ -175,14 +175,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			m.loading = true
 			m.err = nil
-			return m, load(m.client)
+			return m, load(m.client, m.showArchived)
 		case "a":
 			m.showArchived = !m.showArchived
-			m.applyFilter()
-			if m.cursor >= len(m.filtered) && len(m.filtered) > 0 {
-				m.cursor = len(m.filtered) - 1
-			}
-			m.keys = buildKeys(m.selectedIsArchived(), m.showArchived)
+			m.loading = true
+			m.err = nil
+			return m, load(m.client, m.showArchived)
 		case "n":
 			f := common.NewCategoryCreateForm()
 			m.overlay = f
@@ -240,19 +238,13 @@ func (m Model) selectedIsArchived() bool {
 	return m.filtered[m.cursor].IsArchived
 }
 
-// applyFilter rebuilds m.filtered from m.categories based on showArchived.
+// HasOverlay reports whether a form or confirm dialog is currently open.
+func (m Model) HasOverlay() bool { return m.overlay != nil }
+
+// applyFilter rebuilds m.filtered from m.categories.
+// Archive filtering is handled server-side; this exists for consistency with other screens.
 func (m *Model) applyFilter() {
-	if m.showArchived {
-		m.filtered = m.categories
-		return
-	}
-	filtered := m.categories[:0:0]
-	for _, c := range m.categories {
-		if !c.IsArchived {
-			filtered = append(filtered, c)
-		}
-	}
-	m.filtered = filtered
+	m.filtered = m.categories
 }
 
 // categoryMutatedMsg is an internal message carrying the result of a mutation.
@@ -319,11 +311,11 @@ func (m Model) View() string {
 	}
 
 	var b strings.Builder
-	filterTag := ""
+	tag := ""
 	if m.showArchived {
-		filterTag = "  " + common.MutedStyle.Render("[showing archived]")
+		tag = common.MutedStyle.Render("[showing archived]")
 	}
-	b.WriteString(common.RenderTitle("Categories", m.width) + filterTag)
+	b.WriteString(common.RenderTitleWithTag("Categories", tag, m.width))
 	b.WriteString("\n")
 
 	if len(m.filtered) == 0 {

@@ -17,6 +17,9 @@ import (
 
 type skillsLoadedMsg struct{ data []model.Skill }
 
+// skillsPreloadMsg carries categories fetched before opening the new-skill form.
+type skillsPreloadMsg struct{ categories []model.Category }
+
 // OpenSkillMsg is sent when the user presses enter on the selected skill.
 type OpenSkillMsg struct{ SkillID string }
 
@@ -49,6 +52,7 @@ func buildKeys(isArchived bool, showArchived bool) common.SimpleKeyMap {
 	bindings := []common.Binding{
 		common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 		common.KB("enter", "open skill"),
+		common.KB("n", "new"),
 		common.KB("e", "edit"),
 	}
 	if isArchived {
@@ -69,9 +73,9 @@ func buildKeys(isArchived bool, showArchived bool) common.SimpleKeyMap {
 	return common.SimpleKeyMap{Bindings: bindings}
 }
 
-func load(c *api.Client) tea.Cmd {
+func load(c *api.Client, includeArchived bool) tea.Cmd {
 	return func() tea.Msg {
-		data, err := c.GetAllSkills()
+		data, err := c.GetAllSkills(includeArchived)
 		if err != nil {
 			return common.ErrMsg{Err: err}
 		}
@@ -79,8 +83,18 @@ func load(c *api.Client) tea.Cmd {
 	}
 }
 
+func preloadCategories(c *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		cats, err := c.GetAllCategories(false)
+		if err != nil {
+			return common.ErrMsg{Err: err}
+		}
+		return skillsPreloadMsg{categories: cats}
+	}
+}
+
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(load(m.client), m.spinner.Tick)
+	return tea.Batch(load(m.client, m.showArchived), m.spinner.Tick)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -132,8 +146,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.keys = buildKeys(m.selectedIsArchived(), m.showArchived)
 
+	case skillsPreloadMsg:
+		f := common.NewSkillCreateFormWithCategories(msg.categories)
+		m.overlay = f
+		return m, f.Init()
+
 	case common.SkillChangedMsg:
-		return m, load(m.client)
+		return m, load(m.client, m.showArchived)
 
 	case skillMutatedMsg:
 		return m, tea.Batch(
@@ -171,6 +190,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				id := m.filtered[m.cursor].ID
 				return m, func() tea.Msg { return OpenSkillMsg{SkillID: id} }
 			}
+		case "n":
+			return m, preloadCategories(m.client)
 		case "e":
 			if len(m.filtered) > 0 {
 				s := m.filtered[m.cursor]
@@ -213,15 +234,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "a":
 			m.showArchived = !m.showArchived
-			m.applyFilter()
-			if m.cursor >= len(m.filtered) && len(m.filtered) > 0 {
-				m.cursor = len(m.filtered) - 1
-			}
-			m.keys = buildKeys(m.selectedIsArchived(), m.showArchived)
+			m.loading = true
+			m.err = nil
+			return m, load(m.client, m.showArchived)
 		case "r":
 			m.loading = true
 			m.err = nil
-			return m, load(m.client)
+			return m, load(m.client, m.showArchived)
 		}
 	}
 	return m, nil
@@ -235,28 +254,27 @@ func (m Model) selectedIsArchived() bool {
 	return m.filtered[m.cursor].IsArchived
 }
 
-// applyFilter rebuilds m.filtered from m.skills based on showArchived.
+// HasOverlay reports whether a form or confirm dialog is currently open.
+func (m Model) HasOverlay() bool { return m.overlay != nil }
+
+// applyFilter rebuilds m.filtered from m.skills.
+// Archive filtering is handled server-side; this exists for consistency with other screens.
 func (m *Model) applyFilter() {
-	if m.showArchived {
-		m.filtered = m.skills
-		return
-	}
-	filtered := m.skills[:0:0]
-	for _, s := range m.skills {
-		if !s.IsArchived {
-			filtered = append(filtered, s)
-		}
-	}
-	m.filtered = filtered
+	m.filtered = m.skills
 }
 
 // skillMutatedMsg is an internal message carrying the result of a mutation.
 type skillMutatedMsg struct{ toast string }
 
-// submitSkillForm runs the update API call after form completion.
+// submitSkillForm runs the create or update API call after form completion.
 func submitSkillForm(c *api.Client, sf common.SkillForm) tea.Cmd {
 	return func() tea.Msg {
-		err := c.UpdateSkill(sf.EditID(), sf.Name(), sf.CategoryID(), sf.Color())
+		var err error
+		if sf.IsEdit() {
+			err = c.UpdateSkill(sf.EditID(), sf.Name(), sf.CategoryID(), sf.Color())
+		} else {
+			err = c.CreateSkill(sf.Name(), sf.CategoryID(), sf.Color())
+		}
 		if err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
@@ -309,11 +327,11 @@ func (m Model) View() string {
 	}
 
 	var b strings.Builder
-	filterTag := ""
+	tag := ""
 	if m.showArchived {
-		filterTag = "  " + common.MutedStyle.Render("[showing archived]")
+		tag = common.MutedStyle.Render("[showing archived]")
 	}
-	b.WriteString(common.RenderTitle("Skills", m.width) + filterTag)
+	b.WriteString(common.RenderTitleWithTag("Skills", tag, m.width))
 	b.WriteString("\n")
 
 	if len(m.filtered) == 0 {

@@ -159,6 +159,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// HasOverlay reports whether a form or confirm dialog is currently open.
+func (m Model) HasOverlay() bool { return m.overlay != nil }
+
 func (m Model) View() string {
 	if m.overlay != nil {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())

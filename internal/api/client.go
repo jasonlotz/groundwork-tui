@@ -242,18 +242,26 @@ func (c *Client) GetActiveMaterials() ([]model.ActiveMaterial, error) {
 	return out, nil
 }
 
-// GetAllSkills calls skill.getAll (no filters — returns all non-archived skills).
-func (c *Client) GetAllSkills() ([]model.Skill, error) {
-	out, err := query[[]model.Skill](c, "skill.getAll", struct{}{})
+type getAllSkillsInput struct {
+	IncludeArchived bool `json:"includeArchived,omitempty"`
+}
+
+// GetAllSkills calls skill.getAll. Pass includeArchived=true to include archived skills.
+func (c *Client) GetAllSkills(includeArchived bool) ([]model.Skill, error) {
+	out, err := query[[]model.Skill](c, "skill.getAll", getAllSkillsInput{IncludeArchived: includeArchived})
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// GetAllCategories calls category.getAll.
-func (c *Client) GetAllCategories() ([]model.Category, error) {
-	out, err := query[[]model.Category](c, "category.getAll", struct{}{})
+type getAllCategoriesInput struct {
+	IncludeArchived bool `json:"includeArchived,omitempty"`
+}
+
+// GetAllCategories calls category.getAll. Pass includeArchived=true to include archived categories.
+func (c *Client) GetAllCategories(includeArchived bool) ([]model.Category, error) {
+	out, err := query[[]model.Category](c, "category.getAll", getAllCategoriesInput{IncludeArchived: includeArchived})
 	if err != nil {
 		return nil, err
 	}
@@ -261,15 +269,15 @@ func (c *Client) GetAllCategories() ([]model.Category, error) {
 }
 
 type getAllMaterialsInput struct {
-	IsActive *bool `json:"isActive,omitempty"`
+	Status *string `json:"status,omitempty"`
 }
 
-// GetAllMaterials calls material.getAll with an optional isActive filter.
+// GetAllMaterials calls material.getAll with an optional status=ACTIVE filter.
 func (c *Client) GetAllMaterials(activeOnly bool) ([]model.Material, error) {
 	var input getAllMaterialsInput
 	if activeOnly {
-		t := true
-		input.IsActive = &t
+		s := "ACTIVE"
+		input.Status = &s
 	}
 	out, err := query[[]model.Material](c, "material.getAll", input)
 	if err != nil {

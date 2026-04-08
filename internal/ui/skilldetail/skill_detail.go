@@ -150,6 +150,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// HasOverlay reports whether a log form is currently open.
+func (m Model) HasOverlay() bool { return m.overlay != nil }
+
 func (m Model) View() string {
 	if m.loading {
 		return common.SpinnerView(m.spinner)

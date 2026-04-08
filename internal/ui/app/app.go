@@ -76,6 +76,29 @@ func (m Model) Init() tea.Cmd {
 	return m.dashboard.Init()
 }
 
+// inputActive returns true when any screen currently owns keyboard input
+// (an overlay form is open, or the materials search input is focused).
+// Used to suppress global tab-switch hotkeys while the user is typing.
+func (m Model) inputActive() bool {
+	if m.materialsList.Searching() || m.materialsList.HasOverlay() {
+		return true
+	}
+	if m.skillsList.HasOverlay() || m.progressList.HasOverlay() ||
+		m.categoriesList.HasOverlay() {
+		return true
+	}
+	if m.categoryDetail != nil && m.categoryDetail.HasOverlay() {
+		return true
+	}
+	if m.skillDetail != nil && m.skillDetail.HasOverlay() {
+		return true
+	}
+	if m.materialDetail != nil && m.materialDetail.HasOverlay() {
+		return true
+	}
+	return false
+}
+
 // pushScreen saves the current screen state onto the stack and switches to the new screen.
 func (m *Model) pushScreen(s screen) {
 	var state screenState
@@ -242,8 +265,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.materialDetail.Init()
 	}
 
-	// --- global tab-switch keys (work from any screen) ---
-	if key, ok := msg.(tea.KeyMsg); ok {
+	// --- global tab-switch keys (work from any screen, unless a screen owns the input) ---
+	if key, ok := msg.(tea.KeyMsg); ok && !m.inputActive() {
 		switch key.String() {
 		case "d":
 			return m.switchTab(screenDashboard)

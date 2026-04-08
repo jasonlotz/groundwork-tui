@@ -7,6 +7,7 @@ import (
 
 	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -34,28 +35,36 @@ type OpenMaterialMsg struct{ MaterialID string }
 
 // Model is the Bubble Tea model for the materials screen.
 type Model struct {
-	client     *api.Client
-	materials  []model.Material
-	filtered   []model.Material
-	cursor     int
-	activeOnly bool
-	loading    bool
-	err        error
-	width      int
-	height     int
-	spinner    spinner.Model
-	bar        bbprogress.Model
-	keys       common.SimpleKeyMap
-	overlay    tea.Model
+	client      *api.Client
+	materials   []model.Material
+	filtered    []model.Material
+	cursor      int
+	activeOnly  bool
+	search      string
+	searching   bool
+	searchInput textinput.Model
+	loading     bool
+	err         error
+	width       int
+	height      int
+	spinner     spinner.Model
+	bar         bbprogress.Model
+	keys        common.SimpleKeyMap
+	overlay     tea.Model
 }
 
 func New(client *api.Client) Model {
+	ti := textinput.New()
+	ti.Placeholder = "search name, skill, type…"
+	ti.CharLimit = 80
+
 	return Model{
-		client:     client,
-		activeOnly: false,
-		loading:    true,
-		spinner:    common.NewSpinner(),
-		bar:        common.NewProgressBar(18),
+		client:      client,
+		activeOnly:  false,
+		loading:     true,
+		spinner:     common.NewSpinner(),
+		bar:         common.NewProgressBar(18),
+		searchInput: ti,
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "detail"),
@@ -64,6 +73,7 @@ func New(client *api.Client) Model {
 			common.KB("e", "edit"),
 			common.KB("D", "delete"),
 			common.KB("a", "toggle active"),
+			common.KB("/", "search"),
 			common.KB("r", "refresh"),
 			common.KB("esc", "back"),
 		}},
@@ -84,7 +94,7 @@ func load(c *api.Client, activeOnly bool) tea.Cmd {
 // openEdit is non-nil when we're editing an existing material.
 func preload(c *api.Client, openEdit *model.Material) tea.Cmd {
 	return func() tea.Msg {
-		skills, err := c.GetAllSkills()
+		skills, err := c.GetAllSkills(false)
 		if err != nil {
 			return common.ErrMsg{Err: err}
 		}
@@ -189,6 +199,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
+		// ── search mode ──────────────────────────────────────────────────────
+		if m.searching {
+			switch msg.String() {
+			case "enter":
+				// Commit the search and exit search mode.
+				m.searching = false
+				m.searchInput.Blur()
+			case "esc":
+				// Clear search and exit search mode.
+				m.searching = false
+				m.searchInput.Blur()
+				m.search = ""
+				m.searchInput.SetValue("")
+				m.applyFilter()
+				m.cursor = 0
+			default:
+				var cmd tea.Cmd
+				m.searchInput, cmd = m.searchInput.Update(msg)
+				m.search = m.searchInput.Value()
+				m.applyFilter()
+				m.cursor = 0
+				return m, cmd
+			}
+			return m, nil
+		}
+
+		// ── normal mode ───────────────────────────────────────────────────────
 		switch msg.String() {
 		case "q", "esc":
 			return m, func() tea.Msg { return common.GoBackMsg{} }
@@ -202,6 +239,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			}
+		case "/":
+			m.searching = true
+			m.searchInput.Focus()
+			return m, textinput.Blink
 		case "a":
 			m.activeOnly = !m.activeOnly
 			m.loading = true
@@ -252,11 +293,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// Searching reports whether the search input is currently focused.
+// app.go uses this to suppress global tab-switch keys while typing.
+func (m Model) Searching() bool { return m.searching }
+
+// HasOverlay reports whether a form or confirm dialog is currently open.
+func (m Model) HasOverlay() bool { return m.overlay != nil }
+
 func (m *Model) resetCursor() {
-	m.filtered = m.materials
+	m.applyFilter()
 	if m.cursor >= len(m.filtered) {
 		m.cursor = max(0, len(m.filtered)-1)
 	}
+}
+
+// applyFilter rebuilds m.filtered from m.materials based on the active search query.
+// activeOnly is handled server-side (triggers a reload), so it is not re-checked here.
+func (m *Model) applyFilter() {
+	if m.search == "" {
+		m.filtered = m.materials
+		return
+	}
+	q := strings.ToLower(m.search)
+	filtered := m.materials[:0:0]
+	for _, mat := range m.materials {
+		if strings.Contains(strings.ToLower(mat.Name), q) ||
+			strings.Contains(strings.ToLower(mat.SkillName()), q) ||
+			strings.Contains(strings.ToLower(mat.TypeName()), q) {
+			filtered = append(filtered, mat)
+		}
+	}
+	m.filtered = filtered
 }
 
 // submitMaterialForm runs the create/update API call after form completion.
@@ -331,19 +398,32 @@ func (m Model) View() string {
 
 	var b strings.Builder
 
-	// Header
-	filterTag := ""
+	// Header — title with inline filter tags on the same line, rule beneath.
+	var tags []string
 	if m.activeOnly {
-		filterTag = "  " + common.MutedStyle.Render("[active only]")
+		tags = append(tags, common.MutedStyle.Render("[active only]"))
 	}
-	b.WriteString(common.RenderTitle("Materials", m.width) + filterTag)
+	if m.search != "" {
+		tags = append(tags, common.MutedStyle.Render("[search: "+m.search+"]"))
+	}
+	b.WriteString(common.RenderTitleWithTag("Materials", strings.Join(tags, "  "), m.width))
 	b.WriteString("\n")
+
+	// Search input (shown when actively searching)
+	if m.searching {
+		b.WriteString("  " + m.searchInput.View() + "\n\n")
+	}
 
 	if len(m.filtered) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No materials found.\n"))
 	} else {
-		// RenderTitle=2 + blank=1 + help(marginTop+line)=2 = 5 overhead; tab bar=3 → 8; each item is 3 lines (2 content + 1 blank)
-		visibleItems := (m.height - 8) / 3
+		// RenderTitle=2 + blank=1 + help(marginTop+line)=2 = 5 overhead; tab bar=3 → 8
+		// search row (when visible) = 2 extra lines; always include for stability.
+		searchLines := 0
+		if m.searching {
+			searchLines = 2
+		}
+		visibleItems := (m.height - 8 - searchLines) / 3
 		if visibleItems < 3 {
 			visibleItems = 3
 		}
