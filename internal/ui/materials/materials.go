@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -49,7 +48,6 @@ type Model struct {
 	width       int
 	height      int
 	spinner     spinner.Model
-	bar         bbprogress.Model
 	keys        common.SimpleKeyMap
 	overlay     tea.Model
 }
@@ -64,7 +62,6 @@ func New(client *api.Client) Model {
 		activeOnly:  false,
 		loading:     true,
 		spinner:     common.NewSpinner(),
-		bar:         common.NewProgressBar(18),
 		searchInput: ti,
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
@@ -487,7 +484,7 @@ func (m Model) renderRow(i int) string {
 	if mat.TotalUnits > 0 {
 		pct = mat.CompletedUnits / mat.TotalUnits
 	}
-	bar := common.RenderBar(m.bar, pct, 0)
+	bar := common.RenderOverallBar(18, pct)
 	progressText := common.MutedStyle.Render(fmt.Sprintf(
 		"%.4g / %.4g %s", mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label(),
 	))

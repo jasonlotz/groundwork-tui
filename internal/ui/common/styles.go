@@ -327,6 +327,30 @@ func FormatProjectedDate(s string) string {
 	return t.Format("Jan 2, 2006")
 }
 
+// RenderOverallBar renders a fixed-width bar for overall (lifetime) progress.
+// Uses a neutral color (ColorSubtle) so it doesn't collide with the
+// green/yellow/red pace-coded weekly bar rendered above it.
+func RenderOverallBar(width int, pct float64) string {
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 1 {
+		pct = 1
+	}
+	fillStyle := lipgloss.NewStyle().Foreground(ColorMuted)
+	emptyStyle := lipgloss.NewStyle().Foreground(ColorBorder)
+	filled := int(pct * float64(width))
+	var buf strings.Builder
+	for i := range width {
+		if i < filled {
+			buf.WriteString(fillStyle.Render("█"))
+		} else {
+			buf.WriteString(emptyStyle.Render("░"))
+		}
+	}
+	return buf.String()
+}
+
 // RenderWeeklyBar renders a fixed-width bar for weekly goal progress.
 // pct is the fill fraction (0.0–1.0), pacePct is where the pace tick falls (0.0–1.0).
 // The bar color is green/yellow/red based on whether pct is ahead of, near, or behind pace.

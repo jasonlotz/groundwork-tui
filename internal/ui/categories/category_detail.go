@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -36,8 +35,6 @@ type DetailModel struct {
 	width      int
 	height     int
 	spinner    spinner.Model
-	barWide    progress.Model // width 16 — active materials list
-	barNarrow  progress.Model // width 12 — skill rows
 	keys       common.SimpleKeyMap
 	overlay    tea.Model
 }
@@ -48,8 +45,6 @@ func NewDetail(client *api.Client, categoryID string) DetailModel {
 		categoryID: categoryID,
 		loading:    true,
 		spinner:    common.NewSpinner(),
-		barWide:    common.NewProgressBar(16),
-		barNarrow:  common.NewProgressBar(12),
 		keys:       buildDetailKeys(false),
 	}
 }
@@ -353,7 +348,7 @@ func (m DetailModel) View() string {
 			if mat.TotalUnits > 0 {
 				pct = mat.CompletedUnits / mat.TotalUnits
 			}
-			bar := common.RenderBar(m.barWide, pct, 0)
+			bar := common.RenderOverallBar(16, pct)
 			skillLabel := common.MutedStyle.Render(common.Truncate(mat.SkillName, 16))
 			name := common.Truncate(mat.Name, 28)
 			b.WriteString(fmt.Sprintf("  %s  %s  %s\n", bar, common.MutedStyle.Render(name), skillLabel))
@@ -445,7 +440,7 @@ func (m DetailModel) buildDetailSkillRow(i int) []string {
 	if s.TotalUnits > 0 {
 		pct = s.CompletedUnits / s.TotalUnits
 	}
-	bar := common.RenderBar(m.barNarrow, pct, 0)
+	bar := common.RenderOverallBar(12, pct)
 
 	meta := fmt.Sprintf("%d active / %d total", s.ActiveMaterialCount, s.MaterialCount)
 

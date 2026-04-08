@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -33,7 +32,6 @@ type DetailModel struct {
 	width   int
 	height  int
 	spinner spinner.Model
-	bar     bbprogress.Model
 	keys    common.SimpleKeyMap
 	overlay *forms.LogForm
 }
@@ -44,7 +42,6 @@ func NewDetail(client *api.Client, skillID string) DetailModel {
 		skillID: skillID,
 		loading: true,
 		spinner: common.NewSpinner(),
-		bar:     common.NewProgressBar(16),
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "detail"),
@@ -279,7 +276,7 @@ func (m DetailModel) buildSkillDetailMaterialRow(i int) []string {
 	if mat.TotalUnits > 0 {
 		pct = mat.CompletedUnits / mat.TotalUnits
 	}
-	bar := common.RenderBar(m.bar, pct, 0)
+	bar := common.RenderOverallBar(16, pct)
 
 	skillCol := common.ColoredName(skillColor, common.Truncate(m.data.Skill.Name, 14), common.TableCellStyle)
 

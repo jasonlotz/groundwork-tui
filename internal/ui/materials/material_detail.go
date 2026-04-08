@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -44,7 +43,6 @@ type DetailModel struct {
 	width      int
 	height     int
 	spinner    spinner.Model
-	bar        bbprogress.Model
 	keys       common.SimpleKeyMap
 	overlay    tea.Model
 }
@@ -55,7 +53,6 @@ func NewDetail(client *api.Client, materialID string) DetailModel {
 		materialID: materialID,
 		loading:    true,
 		spinner:    common.NewSpinner(),
-		bar:        common.NewProgressBar(40),
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "scroll log", "j", "k", "down", "up"),
 			common.KB("l", "log progress"),
@@ -367,7 +364,7 @@ func (m DetailModel) View() string {
 	}
 	overallLabel := fmt.Sprintf("%.4g / %.4g %s overall",
 		mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label())
-	b.WriteString("  " + common.RenderBar(m.bar, pct, barWidth) + "  " + common.MutedStyle.Render(overallLabel) + "\n")
+	b.WriteString("  " + common.RenderOverallBar(barWidth, pct) + "  " + common.MutedStyle.Render(overallLabel) + "\n")
 
 	// Meta info
 	metaLines := []string{}

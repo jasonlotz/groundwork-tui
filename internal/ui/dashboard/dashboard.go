@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -46,7 +45,6 @@ type Model struct {
 	width           int
 	height          int
 	spinner         spinner.Model
-	bar             bbprogress.Model
 	keys            common.SimpleKeyMap
 	overlay         *forms.LogForm
 }
@@ -56,7 +54,6 @@ func New(client *api.Client) Model {
 		client:  client,
 		loading: true,
 		spinner: common.NewSpinner(),
-		bar:     common.NewProgressBar(20),
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "detail"),
@@ -285,12 +282,12 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 		line2 = "    " + common.MutedStyle.Render("no weekly goal set")
 	}
 
-	// Line 3: overall progress bar.
+	// Line 3: overall progress bar (neutral color — distinct from weekly pace bar).
 	overallPct := 0.0
 	if mat.TotalUnits > 0 {
 		overallPct = mat.CompletedUnits / mat.TotalUnits
 	}
-	overallBar := common.RenderBar(m.bar, overallPct, barWidth)
+	overallBar := common.RenderOverallBar(barWidth, overallPct)
 	overallLabel := fmt.Sprintf("%.4g / %.4g %s overall",
 		mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label())
 	line3 := "    " + overallBar + "  " + common.MutedStyle.Render(overallLabel)

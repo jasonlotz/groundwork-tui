@@ -25,10 +25,10 @@ go build ./...
 # Vet
 go vet ./...
 
-# Run locally
+# Run locally (preferred during development)
 go run ./cmd/groundwork
 
-# Install binary
+# Install binary (only on commit/push — not during development)
 go install github.com/jasonlotz/groundwork-tui/cmd/groundwork@latest
 ```
 
