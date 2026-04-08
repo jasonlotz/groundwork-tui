@@ -8,6 +8,8 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
@@ -116,27 +118,57 @@ func (m Model) View() string {
 	if len(m.logs) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No progress entries yet.\n"))
 	} else {
-		// title(1) + marginBottom(1) + header(1) + blank(1) + help(1) + marginTop(1) = 6
+		// title(2) + blank(1) + header row(1) + help(2) = 6
 		visibleHeight := m.height - 6
 		if visibleHeight < 5 {
 			visibleHeight = 5
 		}
 		start, end := common.VisibleWindow(m.cursor, len(m.logs), visibleHeight)
 
-		// Header
-		dateHdr := common.MutedStyle.Copy().Width(12).Render("Date")
-		nameHdr := common.MutedStyle.Copy().Width(30).Render("Material")
-		unitsHdr := common.MutedStyle.Render("Units")
-		b.WriteString("  " + dateHdr + " " + nameHdr + " " + unitsHdr + "\n")
-
+		// Build the visible slice of rows for the table.
+		// Columns: Date | Material | Units | Notes
+		rows := make([][]string, end-start)
 		for i := start; i < end; i++ {
-			b.WriteString(m.renderRow(i))
-			b.WriteString("\n")
+			log := m.logs[i]
+			units := fmt.Sprintf("%.4g %s", log.Units, log.Material.UnitType.Label())
+			notes := ""
+			if log.Notes != nil {
+				notes = common.Truncate(*log.Notes, 30)
+			}
+			rows[i-start] = []string{
+				log.Date.Value,
+				common.Truncate(log.MaterialName(), 28),
+				units,
+				notes,
+			}
 		}
+
+		// StyleFunc: header row gets muted; selected data row gets highlight+bold;
+		// others get default foreground.
+		selectedIdx := m.cursor - start // index within visible slice
+		t := table.New().
+			Headers("Date", "Material", "Units", "Notes").
+			Rows(rows...).
+			Border(lipgloss.HiddenBorder()).
+			BorderHeader(true).
+			BorderStyle(lipgloss.NewStyle().Foreground(common.ColorBorder)).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				switch {
+				case row == table.HeaderRow:
+					return lipgloss.NewStyle().Foreground(common.ColorMuted).Bold(true)
+				case row == selectedIdx:
+					return lipgloss.NewStyle().Foreground(common.ColorHighlight).Bold(true)
+				default:
+					return lipgloss.NewStyle().Foreground(common.ColorSubtle)
+				}
+			})
+
+		b.WriteString(t.Render())
+		b.WriteString("\n")
 
 		if len(m.logs) > visibleHeight {
 			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
-				"\n  %d–%d of %d entries\n", start+1, end, len(m.logs),
+				"  %d–%d of %d entries\n", start+1, end, len(m.logs),
 			)))
 		}
 	}
@@ -144,25 +176,4 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
 	return b.String()
-}
-
-func (m Model) renderRow(i int) string {
-	log := m.logs[i]
-
-	cursorStr := "  "
-	nameStyle := common.MutedStyle
-	if i == m.cursor {
-		cursorStr = common.SelectedStyle.Render("▶ ")
-		nameStyle = common.SelectedStyle
-	}
-
-	units := fmt.Sprintf("%.4g %s", log.Units, log.Material.UnitType.Label())
-	name := common.Truncate(log.MaterialName(), 28)
-
-	// Use lipgloss Width() for columns so ANSI codes don't break alignment.
-	dateCol := common.MutedStyle.Copy().Width(12).Render(log.Date.Value)
-	nameCol := nameStyle.Copy().Width(30).Render(name)
-	unitsCol := common.StatValueStyle.Render(units)
-
-	return cursorStr + dateCol + " " + nameCol + " " + unitsCol
 }
