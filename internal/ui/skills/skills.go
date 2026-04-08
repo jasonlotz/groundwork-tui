@@ -13,6 +13,7 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/forms"
 )
 
 type skillsLoadedMsg struct{ data []model.Skill }
@@ -108,16 +109,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overlay = updated
 
 		switch msg := msg.(type) {
-		case common.SkillFormDoneMsg:
+		case forms.SkillFormDoneMsg:
 			m.overlay = nil
 			if !msg.Cancelled {
-				if sf, ok := updated.(common.SkillForm); ok {
+				if sf, ok := updated.(forms.SkillForm); ok {
 					return m, submitSkillForm(m.client, sf)
 				}
 			}
 			return m, cmd
 
-		case common.ConfirmDoneMsg:
+		case forms.ConfirmDoneMsg:
 			m.overlay = nil
 			if msg.Confirmed {
 				return m, submitConfirm(m.client, m.filtered, m.cursor, msg.Tag)
@@ -147,7 +148,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.keys = buildKeys(m.selectedIsArchived(), m.showArchived)
 
 	case skillsPreloadMsg:
-		f := common.NewSkillCreateFormWithCategories(msg.categories)
+		f := forms.NewSkillCreateFormWithCategories(msg.categories)
 		m.overlay = f
 		return m, f.Init()
 
@@ -195,7 +196,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "e":
 			if len(m.filtered) > 0 {
 				s := m.filtered[m.cursor]
-				f := common.NewSkillEditForm(s.ID, s.Name, s.CategoryID, s.Color)
+				f := forms.NewSkillEditForm(s.ID, s.Name, s.CategoryID, s.Color)
 				m.overlay = f
 				return m, f.Init()
 			}
@@ -212,7 +213,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					desc = fmt.Sprintf("Archive \"%s\"?", common.Truncate(s.Name, 40))
 					tag = "archive"
 				}
-				f := common.NewConfirmForm(title, desc, tag)
+				f := forms.NewConfirmForm(title, desc, tag)
 				m.overlay = f
 				return m, f.Init()
 			}
@@ -224,7 +225,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return common.ToastMsg{Text: "Archive the skill first before deleting.", IsError: true}
 					}
 				}
-				f := common.NewConfirmForm(
+				f := forms.NewConfirmForm(
 					"Delete skill?",
 					fmt.Sprintf("Permanently delete \"%s\" and all its materials?", common.Truncate(s.Name, 40)),
 					"delete",
@@ -267,7 +268,7 @@ func (m *Model) applyFilter() {
 type skillMutatedMsg struct{ toast string }
 
 // submitSkillForm runs the create or update API call after form completion.
-func submitSkillForm(c *api.Client, sf common.SkillForm) tea.Cmd {
+func submitSkillForm(c *api.Client, sf forms.SkillForm) tea.Cmd {
 	return func() tea.Msg {
 		var err error
 		if sf.IsEdit() {

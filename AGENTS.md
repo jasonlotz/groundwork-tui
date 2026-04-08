@@ -63,24 +63,32 @@ internal/
       app.go             — root model; owns navigation stack + all screen models
     common/
       styles.go          — all Lip Gloss styles + shared helpers (RenderTitle, RenderBar, etc.)
-      messages.go        — cross-cutting message types: GoBackMsg, ToastMsg, ErrMsg
-      crudforms.go       — reusable Huh popup models: CategoryForm, SkillForm, ConfirmForm
-      materialform.go    — MaterialForm popup model (create + edit)
+      messages.go        — cross-cutting message types: GoBackMsg, ToastMsg, ErrMsg, MaterialChangedMsg, etc.
       tailwind.go        — maps Tailwind color class strings to terminal hex colors
       spinner.go         — pre-configured spinner
       help.go            — pre-configured help bar
       keys.go            — key binding helpers
       tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen
+    forms/
+      category_form.go   — CategoryForm, CategoryFormDoneMsg, NewCategoryCreateForm, NewCategoryEditForm
+      skill_form.go      — SkillForm, SkillFormDoneMsg, NewSkillCreateFormWithCategories, NewSkillEditForm
+      material_form.go   — MaterialForm, MaterialFormDoneMsg, MaterialFormResult, NewMaterialCreateForm, NewMaterialEditForm
+      confirm_form.go    — ConfirmForm, ConfirmDoneMsg, NewConfirmForm
+      log_form.go        — LogForm, LogDoneMsg, NewLogForm
+      colors.go          — shared colorOptions slice used by CategoryForm and SkillForm
     setup/
       setup.go           — first-run wizard (Huh form for base URL + API key)
     dashboard/           — home screen: KPI cards + active materials list
-    materials/           — materials list + create/edit/delete/log overlays
-    skills/              — skills list
-    progress/            — progress log list; owns LogForm
-    categories/          — categories list
-    categorydetail/      — single category: skills list
-    skilldetail/         — single skill: KPI + materials table
-    materialdetail/      — single material: KPI + progress log
+    materials/
+      materials.go       — materials list + create/edit/delete/log overlays
+      material_detail.go — DetailModel, NewDetail(): single material KPI + progress log
+    skills/
+      skills.go          — skills list
+      skill_detail.go    — DetailModel, NewDetail(): single skill KPI + materials table
+    progress/            — progress log list
+    categories/
+      categories.go      — categories list
+      category_detail.go — DetailModel, NewDetail(): single category skills list
 ```
 
 ---
@@ -119,7 +127,7 @@ Recount from the `View()` source every time you change layout; do not guess.
 
 ### Overlay pattern
 
-Screens store an `overlay tea.Model` field. When non-nil, `Update` routes all messages through the overlay and `View` renders it centered via `lipgloss.Place`. Done messages (`LogDoneMsg`, `CategoryFormDoneMsg`, `ConfirmDoneMsg`, etc.) clear the overlay and trigger a data reload.
+Screens store an `overlay tea.Model` field. When non-nil, `Update` routes all messages through the overlay and `View` renders it centered via `lipgloss.Place`. Done messages (`forms.LogDoneMsg`, `forms.CategoryFormDoneMsg`, `forms.ConfirmDoneMsg`, etc.) clear the overlay and trigger a data reload. All form and done-message types live in `internal/ui/forms/` — never in `common`.
 
 Every screen that can have an overlay must implement `HasOverlay() bool { return m.overlay != nil }`. The root `app.go` collects these via `inputActive()` to suppress global tab-switch hotkeys (`d/c/s/m/p`) while a form is open. If you add a new screen with an overlay, add its `HasOverlay()` check to `inputActive()` in `app.go`.
 

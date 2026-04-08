@@ -13,6 +13,7 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/forms"
 )
 
 type categoriesLoadedMsg struct{ data []model.Category }
@@ -95,16 +96,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overlay = updated
 
 		switch msg := msg.(type) {
-		case common.CategoryFormDoneMsg:
+		case forms.CategoryFormDoneMsg:
 			m.overlay = nil
 			if !msg.Cancelled {
-				if cf, ok := updated.(common.CategoryForm); ok {
+				if cf, ok := updated.(forms.CategoryForm); ok {
 					return m, submitCategoryForm(m.client, cf)
 				}
 			}
 			return m, cmd
 
-		case common.ConfirmDoneMsg:
+		case forms.ConfirmDoneMsg:
 			m.overlay = nil
 			if msg.Confirmed {
 				return m, submitConfirm(m.client, m.filtered, m.cursor, msg.Tag)
@@ -182,13 +183,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = nil
 			return m, load(m.client, m.showArchived)
 		case "n":
-			f := common.NewCategoryCreateForm()
+			f := forms.NewCategoryCreateForm()
 			m.overlay = f
 			return m, f.Init()
 		case "e":
 			if len(m.filtered) > 0 {
 				cat := m.filtered[m.cursor]
-				f := common.NewCategoryEditForm(cat.ID, cat.Name, cat.Color)
+				f := forms.NewCategoryEditForm(cat.ID, cat.Name, cat.Color)
 				m.overlay = f
 				return m, f.Init()
 			}
@@ -205,7 +206,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					desc = fmt.Sprintf("Archive \"%s\"? All its skills will also be archived.", common.Truncate(cat.Name, 40))
 					tag = "archive"
 				}
-				f := common.NewConfirmForm(title, desc, tag)
+				f := forms.NewConfirmForm(title, desc, tag)
 				m.overlay = f
 				return m, f.Init()
 			}
@@ -217,7 +218,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return common.ToastMsg{Text: "Archive the category first before deleting.", IsError: true}
 					}
 				}
-				f := common.NewConfirmForm(
+				f := forms.NewConfirmForm(
 					"Delete category?",
 					fmt.Sprintf("Permanently delete \"%s\" and all its skills?", common.Truncate(cat.Name, 40)),
 					"delete",
@@ -251,7 +252,7 @@ func (m *Model) applyFilter() {
 type categoryMutatedMsg struct{ toast string }
 
 // submitCategoryForm runs the create or update API call after form completion.
-func submitCategoryForm(c *api.Client, cf common.CategoryForm) tea.Cmd {
+func submitCategoryForm(c *api.Client, cf forms.CategoryForm) tea.Cmd {
 	return func() tea.Msg {
 		var err error
 		if cf.IsEdit() {

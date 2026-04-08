@@ -13,6 +13,7 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/forms"
 )
 
 type logsLoadedMsg struct{ data []model.ProgressLog }
@@ -80,7 +81,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updated, cmd := m.overlay.Update(msg)
 		m.overlay = updated
 
-		if done, ok := msg.(common.ConfirmDoneMsg); ok {
+		if done, ok := msg.(forms.ConfirmDoneMsg); ok {
 			m.overlay = nil
 			if done.Confirmed && done.Tag == "delete" && m.cursor < len(m.logs) {
 				id := m.logs[m.cursor].ID
@@ -150,7 +151,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					entry.Date.Value,
 					common.Truncate(entry.MaterialName(), 30),
 				)
-				f := common.NewConfirmForm("Delete entry?", desc, "delete")
+				f := forms.NewConfirmForm("Delete entry?", desc, "delete")
 				m.overlay = f
 				return m, f.Init()
 			}

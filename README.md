@@ -290,7 +290,7 @@ type Model struct {
     dashboard      dashboard.Model
     materialsList  materials.Model
     // ... one field per screen ...
-    categoryDetail *categorydetail.Model  // pointer = created on demand
+    categoryDetail *categories.DetailModel  // pointer = created on demand
     toast          string
     width, height  int
 }
@@ -328,7 +328,7 @@ case screenDashboard:
 }
 ```
 
-This is the key architectural insight: **screens never talk to each other directly**. A screen emits a typed message upward; the root `app.Update()` intercepts it and decides what to do. The `dashboard` package has no idea that `skilldetail` exists.
+This is the key architectural insight: **screens never talk to each other directly**. A screen emits a typed message upward; the root `app.Update()` intercepts it and decides what to do. The `dashboard` package has no idea that `skills.DetailModel` exists.
 
 **WindowSizeMsg forwarding**
 
@@ -434,7 +434,7 @@ case "enter":
     return m, func() tea.Msg { return OpenMaterialMsg{MaterialID: id} }
 ```
 
-`app.Update()` receives `dashboard.OpenMaterialMsg`, creates a `materialdetail.Model`, and pushes the detail screen. Tab switches (`d/c/s/m/p`) are intercepted globally in `app.Update()` via `switchTab()` before delegation, so screens never handle them directly.
+`app.Update()` receives `dashboard.OpenMaterialMsg`, creates a `materials.DetailModel`, and pushes the detail screen. Tab switches (`d/c/s/m/p`) are intercepted globally in `app.Update()` via `switchTab()` before delegation, so screens never handle them directly.
 
 ### The `common` package: `internal/ui/common/`
 
@@ -446,15 +446,13 @@ Shared infrastructure used by every screen. Seven files:
 
 **`tabs.go`** — `RenderTabBar(activeTab, width)` renders the tab bar shown at the top of every screen. The root `app.View()` prepends it above the active screen's content using `lipgloss.JoinVertical`.
 
-**`crudforms.go`** — Reusable Huh-based popup models for all CRUD operations: `CategoryForm`, `SkillForm`, `ConfirmForm`, and `MaterialForm`. Each satisfies `tea.Model` and wraps its content in `PopupStyle`. See the Forms section below for details.
-
 **`tailwind.go`** — The web app stores category and skill colors as Tailwind CSS class strings like `"bg-violet-300 text-violet-900 dark:bg-violet-800"`. This file maps those strings to terminal hex colors. `extractBgClass` pulls the first `bg-*` token from a multi-class string. `TailwindToLipgloss` returns `(lipgloss.Color, bool)` — the `bool` follows Go's idiomatic "ok" pattern so callers can distinguish "no color" from "color happens to match the fallback". `ColorDot` and `ColoredName` are the two helpers screens actually call.
 
 **`spinner.go`** and **`help.go`** — Thin wrappers that pre-configure the `bubbles/spinner` and `bubbles/help` components with the project's color palette, so every screen gets consistent styling without repeating configuration.
 
-### Forms: `internal/ui/progress/log_form.go` and `internal/ui/common/crudforms.go`
+### Forms: `internal/ui/forms/`
 
-The log-progress form uses [Huh](https://github.com/charmbracelet/huh), Charm's form library. `LogForm` is itself a `tea.Model` — it wraps a `*huh.Form` and satisfies `Init`/`Update`/`View`.
+The forms package contains all reusable Huh-based popup models. `LogForm` is itself a `tea.Model` — it wraps a `*huh.Form` and satisfies `Init`/`Update`/`View`.
 
 The key technique is **pointer binding**: form field values are bound to pointers on the `LogForm` struct at construction time, and Huh updates them directly as the user types:
 
@@ -492,12 +490,13 @@ if m.overlay != nil {
 
 Each form's `View()` wraps its content in `common.PopupStyle` (rounded violet border, fixed 60-char width), so callers don't need to apply any additional styling.
 
-`crudforms.go` in the `common` package provides four reusable popup models built on the same pattern:
+The `forms` package provides five popup models, all in `internal/ui/forms/`:
 
 - **`CategoryForm`** — name + color picker for create/edit (`NewCategoryCreateForm` / `NewCategoryEditForm`). Sends `CategoryFormDoneMsg` when complete.
 - **`SkillForm`** — same structure for skills, also carries the parent `categoryID`. Supports an optional category picker (`NewSkillCreateFormWithCategories`). Sends `SkillFormDoneMsg`.
 - **`MaterialForm`** — create/edit form for materials (name, skill, type, unit type, total units, URL, dates). Sends `MaterialFormDoneMsg`.
 - **`ConfirmForm`** — a small `huh.NewConfirm` yes/no dialog used for archive and delete confirmations. Carries a `tag` string (e.g. `"archive"`, `"delete"`) so the screen knows which action to execute. Sends `ConfirmDoneMsg`.
+- **`LogForm`** — log-progress form; used as an inline overlay on the dashboard, materials, and skill detail screens. Sends `LogDoneMsg`.
 
 The setup wizard in `internal/ui/setup/setup.go` uses the exact same Huh pattern, with `EchoModePassword` on the API key field and a `huh.NewConfirm` for the save prompt.
 
@@ -521,7 +520,7 @@ A few patterns worth noting:
 
 To tie it all together, here is what happens when a user presses `l` (log progress) on the dashboard:
 
-1. **`dashboard.Update`** sees `"l"`, creates a `progress.LogForm` and stores it in `m.overlay`. Returns `m.overlay.Init()` as the next command.
+1. **`dashboard.Update`** sees `"l"`, creates a `forms.LogForm` and stores it in `m.overlay`. Returns `m.overlay.Init()` as the next command.
 2. **`LogForm.Init`** returns `lf.form.Init()` — Huh initializes its cursor state.
 3. `dashboard.View()` now sees `m.overlay != nil` and returns `lipgloss.Place(...)` centered around `m.overlay.View()` — the form popup floats over the dashboard.
 4. The user fills in the form. Each keystroke is routed through the overlay block in `dashboard.Update` → `m.overlay.Update(msg)` → `LogForm.Update` → `lf.form.Update(msg)` → Huh handles it internally.
@@ -532,7 +531,7 @@ To tie it all together, here is what happens when a user presses `l` (log progre
 9. **`app.View`** renders `m.dashboard.View()` and appends the green toast below it via `lipgloss.JoinVertical`.
 10. On the next keypress, **`app.Update`** clears `m.toast`.
 
-The same overlay pattern applies to category/skill CRUD. For example, pressing `n` on the categories screen creates a `common.CategoryForm`, stores it as `m.overlay`, and routes messages through it until `CategoryFormDoneMsg` arrives — at which point the screen calls the API and reloads its data, all without `app.go` being involved at all.
+The same overlay pattern applies to category/skill CRUD. For example, pressing `n` on the categories screen creates a `forms.CategoryForm`, stores it as `m.overlay`, and routes messages through it until `forms.CategoryFormDoneMsg` arrives — at which point the screen calls the API and reloads its data, all without `app.go` being involved at all.
 
 ### Package dependency map
 
@@ -540,19 +539,16 @@ The same overlay pattern applies to category/skill CRUD. For example, pressing `
 cmd/groundwork
     └── internal/ui/app          ← root model; imports all screens
             ├── internal/ui/dashboard
-            ├── internal/ui/materials
-            ├── internal/ui/skills
-            ├── internal/ui/categories
-            ├── internal/ui/categorydetail
-            ├── internal/ui/skilldetail
-            ├── internal/ui/materialdetail
-            ├── internal/ui/progress    ← owns LogForm; used as inline overlay
-            └── internal/ui/common     ← styles, messages, shared form models (crudforms.go)
-                                          imported by all screens; imports nothing from ui
+            ├── internal/ui/materials    ← includes MaterialDetail (materials.DetailModel)
+            ├── internal/ui/skills       ← includes SkillDetail (skills.DetailModel)
+            ├── internal/ui/categories   ← includes CategoryDetail (categories.DetailModel)
+            ├── internal/ui/progress
+            ├── internal/ui/forms        ← all form + done-message types; no ui imports
+            └── internal/ui/common       ← styles, messages; imported by all screens
 
     └── internal/api             ← HTTP client; imported by all screens via constructor
     └── internal/config          ← TOML config; only imported by main + setup
     └── internal/model           ← data structs; imported by api + screens
 ```
 
-No screen package imports another screen package. All cross-screen communication goes through `app.go` via typed messages. `common` flows inward only — it imports nothing from `ui`.
+No screen package imports another screen package. All cross-screen communication goes through `app.go` via typed messages. `common` and `forms` flow inward only — they import nothing from `ui` screen packages.

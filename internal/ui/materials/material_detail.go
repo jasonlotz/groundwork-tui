@@ -1,5 +1,5 @@
-// Package materialdetail provides the material detail TUI screen.
-package materialdetail
+// Detail screen for a single material — KPI cards, progress bars, and log history.
+package materials
 
 import (
 	"fmt"
@@ -15,26 +15,26 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
-	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/forms"
 )
 
-type dataLoadedMsg struct{ data *model.MaterialDetail }
+type materialDetailLoadedMsg struct{ data *model.MaterialDetail }
 
-// preloadMsg carries skills + types fetched before opening the material form.
-type preloadMsg struct {
+// materialDetailPreloadMsg carries skills + types fetched before opening the material form.
+type materialDetailPreloadMsg struct {
 	skills []model.Skill
 	types  []model.MaterialType
 }
 
-// materialMutatedMsg is an internal result from a mutation command.
+// materialDetailMutatedMsg is an internal result from a mutation command.
 // navigateBack is true when the screen should close (e.g. after delete).
-type materialMutatedMsg struct {
+type materialDetailMutatedMsg struct {
 	toast        string
 	navigateBack bool
 }
 
-// Model is the Bubble Tea model for the material detail screen.
-type Model struct {
+// DetailModel is the Bubble Tea model for the material detail screen.
+type DetailModel struct {
 	client     *api.Client
 	materialID string
 	data       *model.MaterialDetail
@@ -49,8 +49,8 @@ type Model struct {
 	overlay    tea.Model
 }
 
-func New(client *api.Client, materialID string) Model {
-	return Model{
+func NewDetail(client *api.Client, materialID string) DetailModel {
+	return DetailModel{
 		client:     client,
 		materialID: materialID,
 		loading:    true,
@@ -67,18 +67,18 @@ func New(client *api.Client, materialID string) Model {
 	}
 }
 
-func load(c *api.Client, materialID string) tea.Cmd {
+func loadMaterialDetail(c *api.Client, materialID string) tea.Cmd {
 	return func() tea.Msg {
 		data, err := c.GetMaterialDetail(materialID)
 		if err != nil {
 			return common.ErrMsg{Err: err}
 		}
-		return dataLoadedMsg{data}
+		return materialDetailLoadedMsg{data}
 	}
 }
 
-// preload fetches skills and types needed to populate the material edit form.
-func preload(c *api.Client) tea.Cmd {
+// preloadMaterialDetail fetches skills and types needed to populate the material edit form.
+func preloadMaterialDetail(c *api.Client) tea.Cmd {
 	return func() tea.Msg {
 		skills, err := c.GetAllSkills(false)
 		if err != nil {
@@ -88,15 +88,15 @@ func preload(c *api.Client) tea.Cmd {
 		if err != nil {
 			return common.ErrMsg{Err: err}
 		}
-		return preloadMsg{skills: skills, types: types}
+		return materialDetailPreloadMsg{skills: skills, types: types}
 	}
 }
 
-func (m Model) Init() tea.Cmd {
-	return tea.Batch(load(m.client, m.materialID), m.spinner.Tick)
+func (m DetailModel) Init() tea.Cmd {
+	return tea.Batch(loadMaterialDetail(m.client, m.materialID), m.spinner.Tick)
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// ── overlay routing ──────────────────────────────────────────────────────
 	if m.overlay != nil {
 		if k, ok := msg.(tea.KeyMsg); ok && (k.String() == "ctrl+c" || k.String() == "q") {
@@ -107,30 +107,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overlay = updated
 
 		switch msg := msg.(type) {
-		case progress.LogDoneMsg:
+		case forms.LogDoneMsg:
 			m.overlay = nil
 			if !msg.Cancelled {
 				return m, tea.Batch(
-					load(m.client, m.materialID),
+					loadMaterialDetail(m.client, m.materialID),
 					func() tea.Msg { return common.ProgressLoggedMsg{} },
 					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
 				)
 			}
 			return m, nil
 
-		case common.MaterialFormDoneMsg:
+		case forms.MaterialFormDoneMsg:
 			m.overlay = nil
 			if !msg.Cancelled {
-				if mf, ok := updated.(common.MaterialForm); ok {
-					return m, submitMaterialForm(m.client, m.materialID, mf)
+				if mf, ok := updated.(forms.MaterialForm); ok {
+					return m, submitMaterialDetailForm(m.client, m.materialID, mf)
 				}
 			}
 			return m, nil
 
-		case common.ConfirmDoneMsg:
+		case forms.ConfirmDoneMsg:
 			m.overlay = nil
 			if msg.Confirmed && msg.Tag == "delete" {
-				return m, deleteMaterial(m.client, m.materialID)
+				return m, deleteMaterialDetail(m.client, m.materialID)
 			}
 			return m, nil
 
@@ -147,11 +147,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case dataLoadedMsg:
+	case materialDetailLoadedMsg:
 		m.data = msg.data
 		m.loading = false
 
-	case materialMutatedMsg:
+	case materialDetailMutatedMsg:
 		cmds := []tea.Cmd{
 			func() tea.Msg { return common.MaterialChangedMsg{} },
 		}
@@ -162,11 +162,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.navigateBack {
 			cmds = append(cmds, func() tea.Msg { return common.GoBackMsg{} })
 		} else {
-			cmds = append(cmds, load(m.client, m.materialID))
+			cmds = append(cmds, loadMaterialDetail(m.client, m.materialID))
 		}
 		return m, tea.Batch(cmds...)
 
-	case preloadMsg:
+	case materialDetailPreloadMsg:
 		// Preload completed — open the edit form overlay pre-populated from current data.
 		if m.data == nil {
 			return m, nil
@@ -188,7 +188,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Skill:          info.Skill,
 			MaterialType:   info.MaterialType,
 		}
-		f := common.NewMaterialEditForm(mat.ID, mat, msg.skills, msg.types)
+		f := forms.NewMaterialEditForm(mat.ID, mat, msg.skills, msg.types)
 		m.overlay = f
 		return m, f.Init()
 
@@ -220,7 +220,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 			if m.data.Material.Status == model.StatusActive {
-				lf := progress.NewLogForm(m.client, m.materialID, m.data.Material.Name)
+				lf := forms.NewLogForm(m.client, m.materialID, m.data.Material.Name)
 				m.overlay = lf
 				return m, m.overlay.Init()
 			}
@@ -229,12 +229,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "e":
 			if m.data != nil {
-				return m, preload(m.client)
+				return m, preloadMaterialDetail(m.client)
 			}
 		case "D":
 			if m.data != nil {
 				mat := m.data.Material
-				f := common.NewConfirmForm(
+				f := forms.NewConfirmForm(
 					"Delete material?",
 					fmt.Sprintf("Permanently delete \"%s\" and all its progress logs?", common.Truncate(mat.Name, 40)),
 					"delete",
@@ -245,14 +245,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			m.loading = true
 			m.err = nil
-			return m, load(m.client, m.materialID)
+			return m, loadMaterialDetail(m.client, m.materialID)
 		}
 	}
 	return m, nil
 }
 
-// submitMaterialForm runs the update API call after the edit form completes.
-func submitMaterialForm(c *api.Client, materialID string, mf common.MaterialForm) tea.Cmd {
+// submitMaterialDetailForm runs the update API call after the edit form completes.
+func submitMaterialDetailForm(c *api.Client, materialID string, mf forms.MaterialForm) tea.Cmd {
 	return func() tea.Msg {
 		r := mf.Result()
 		err := c.UpdateMaterial(api.MaterialUpdateResult{
@@ -271,24 +271,24 @@ func submitMaterialForm(c *api.Client, materialID string, mf common.MaterialForm
 		if err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
-		return materialMutatedMsg{toast: "Material updated!", navigateBack: false}
+		return materialDetailMutatedMsg{toast: "Material updated!", navigateBack: false}
 	}
 }
 
-// deleteMaterial deletes the material and signals navigation back + domain event.
-func deleteMaterial(c *api.Client, materialID string) tea.Cmd {
+// deleteMaterialDetail deletes the material and signals navigation back + domain event.
+func deleteMaterialDetail(c *api.Client, materialID string) tea.Cmd {
 	return func() tea.Msg {
 		if err := c.DeleteMaterial(materialID); err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
-		return materialMutatedMsg{toast: "Material deleted.", navigateBack: true}
+		return materialDetailMutatedMsg{toast: "Material deleted.", navigateBack: true}
 	}
 }
 
 // HasOverlay reports whether a form or confirm dialog is currently open.
-func (m Model) HasOverlay() bool { return m.overlay != nil }
+func (m DetailModel) HasOverlay() bool { return m.overlay != nil }
 
-func (m Model) View() string {
+func (m DetailModel) View() string {
 	if m.overlay != nil {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())
 	}

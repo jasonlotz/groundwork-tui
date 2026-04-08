@@ -1,5 +1,4 @@
-// Package progress — log form for logging units against a material.
-package progress
+package forms
 
 import (
 	"fmt"

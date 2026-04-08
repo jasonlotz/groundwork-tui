@@ -7,13 +7,10 @@ import (
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/categories"
-	"github.com/jasonlotz/groundwork-tui/internal/ui/categorydetail"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/dashboard"
-	"github.com/jasonlotz/groundwork-tui/internal/ui/materialdetail"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/materials"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
-	"github.com/jasonlotz/groundwork-tui/internal/ui/skilldetail"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/skills"
 )
 
@@ -34,9 +31,9 @@ const (
 // push/pop a navigation stack.
 type screenState struct {
 	id             screen
-	categoryDetail *categorydetail.Model
-	skillDetail    *skilldetail.Model
-	materialDetail *materialdetail.Model
+	categoryDetail *categories.DetailModel
+	skillDetail    *skills.DetailModel
+	materialDetail *materials.DetailModel
 }
 
 // Model is the root application model.
@@ -50,9 +47,9 @@ type Model struct {
 	skillsList     skills.Model
 	progressList   progress.Model
 	categoriesList categories.Model
-	categoryDetail *categorydetail.Model
-	skillDetail    *skilldetail.Model
-	materialDetail *materialdetail.Model
+	categoryDetail *categories.DetailModel
+	skillDetail    *skills.DetailModel
+	materialDetail *materials.DetailModel
 	toast          string
 	toastIsErr     bool
 	width          int
@@ -224,42 +221,42 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// --- dashboard: open material detail from active materials list ---
 	case dashboard.OpenMaterialMsg:
-		md := materialdetail.New(m.client, msg.MaterialID)
+		md := materials.NewDetail(m.client, msg.MaterialID)
 		m.materialDetail = &md
 		m.pushScreen(screenMaterialDetail)
 		return m, m.materialDetail.Init()
 
 	// --- skills list: open skill detail ---
 	case skills.OpenSkillMsg:
-		sd := skilldetail.New(m.client, msg.SkillID)
+		sd := skills.NewDetail(m.client, msg.SkillID)
 		m.skillDetail = &sd
 		m.pushScreen(screenSkillDetail)
 		return m, m.skillDetail.Init()
 
 	// --- categories screen: open a category detail ---
 	case categories.OpenCategoryMsg:
-		cd := categorydetail.New(m.client, msg.CategoryID)
+		cd := categories.NewDetail(m.client, msg.CategoryID)
 		m.categoryDetail = &cd
 		m.pushScreen(screenCategoryDetail)
 		return m, m.categoryDetail.Init()
 
 	// --- category detail: open a skill detail ---
-	case categorydetail.OpenSkillMsg:
-		sd := skilldetail.New(m.client, msg.SkillID)
+	case categories.OpenSkillMsg:
+		sd := skills.NewDetail(m.client, msg.SkillID)
 		m.skillDetail = &sd
 		m.pushScreen(screenSkillDetail)
 		return m, m.skillDetail.Init()
 
 	// --- skill detail: open material detail ---
-	case skilldetail.OpenMaterialMsg:
-		md := materialdetail.New(m.client, msg.MaterialID)
+	case skills.OpenMaterialMsg:
+		md := materials.NewDetail(m.client, msg.MaterialID)
 		m.materialDetail = &md
 		m.pushScreen(screenMaterialDetail)
 		return m, m.materialDetail.Init()
 
 	// --- materials list: open detail ---
 	case materials.OpenMaterialMsg:
-		md := materialdetail.New(m.client, msg.MaterialID)
+		md := materials.NewDetail(m.client, msg.MaterialID)
 		m.materialDetail = &md
 		m.pushScreen(screenMaterialDetail)
 		return m, m.materialDetail.Init()
@@ -316,7 +313,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenCategoryDetail:
 		if m.categoryDetail != nil {
 			updated, cmd := m.categoryDetail.Update(msg)
-			if cd, ok := updated.(categorydetail.Model); ok {
+			if cd, ok := updated.(categories.DetailModel); ok {
 				m.categoryDetail = &cd
 			}
 			return m, cmd
@@ -325,7 +322,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenSkillDetail:
 		if m.skillDetail != nil {
 			updated, cmd := m.skillDetail.Update(msg)
-			if sd, ok := updated.(skilldetail.Model); ok {
+			if sd, ok := updated.(skills.DetailModel); ok {
 				m.skillDetail = &sd
 			}
 			return m, cmd
@@ -334,7 +331,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenMaterialDetail:
 		if m.materialDetail != nil {
 			updated, cmd := m.materialDetail.Update(msg)
-			if md, ok := updated.(materialdetail.Model); ok {
+			if md, ok := updated.(materials.DetailModel); ok {
 				m.materialDetail = &md
 			}
 			return m, cmd

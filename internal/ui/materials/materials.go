@@ -15,7 +15,7 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
-	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/forms"
 )
 
 type materialsLoadedMsg struct{ data []model.Material }
@@ -122,23 +122,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overlay = updated
 
 		switch msg := msg.(type) {
-		case progress.LogDoneMsg:
+		case forms.LogDoneMsg:
 			m.overlay = nil
 			if !msg.Cancelled {
 				return m, func() tea.Msg { return common.ProgressLoggedMsg{} }
 			}
 			return m, nil
 
-		case common.MaterialFormDoneMsg:
+		case forms.MaterialFormDoneMsg:
 			m.overlay = nil
 			if !msg.Cancelled {
-				if mf, ok := updated.(common.MaterialForm); ok {
+				if mf, ok := updated.(forms.MaterialForm); ok {
 					return m, submitMaterialForm(m.client, m.activeOnly, mf)
 				}
 			}
 			return m, nil
 
-		case common.ConfirmDoneMsg:
+		case forms.ConfirmDoneMsg:
 			m.overlay = nil
 			if msg.Confirmed && msg.Tag == "delete" {
 				return m, deleteMaterial(m.client, m.filtered, m.cursor, m.activeOnly)
@@ -181,11 +181,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case preloadMsg:
 		// Preload completed — open the form overlay.
-		var f common.MaterialForm
+		var f forms.MaterialForm
 		if msg.openEdit != nil {
-			f = common.NewMaterialEditForm(msg.openEdit.ID, *msg.openEdit, msg.skills, msg.types)
+			f = forms.NewMaterialEditForm(msg.openEdit.ID, *msg.openEdit, msg.skills, msg.types)
 		} else {
-			f = common.NewMaterialCreateForm(msg.skills, msg.types)
+			f = forms.NewMaterialCreateForm(msg.skills, msg.types)
 		}
 		m.overlay = f
 		return m, f.Init()
@@ -257,7 +257,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.filtered) > 0 {
 				mat := m.filtered[m.cursor]
 				if mat.Status == model.StatusActive {
-					lf := progress.NewLogForm(m.client, mat.ID, mat.Name)
+					lf := forms.NewLogForm(m.client, mat.ID, mat.Name)
 					m.overlay = lf
 					return m, lf.Init()
 				}
@@ -281,7 +281,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "D":
 			if len(m.filtered) > 0 {
 				mat := m.filtered[m.cursor]
-				f := common.NewConfirmForm(
+				f := forms.NewConfirmForm(
 					"Delete material?",
 					fmt.Sprintf("Permanently delete \"%s\" and all its progress logs?", common.Truncate(mat.Name, 40)),
 					"delete",
@@ -349,7 +349,7 @@ func statusRank(s model.MaterialStatus) int {
 }
 
 // submitMaterialForm runs the create/update API call after form completion.
-func submitMaterialForm(c *api.Client, activeOnly bool, mf common.MaterialForm) tea.Cmd {
+func submitMaterialForm(c *api.Client, activeOnly bool, mf forms.MaterialForm) tea.Cmd {
 	return func() tea.Msg {
 		r := mf.Result()
 		var err error

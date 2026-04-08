@@ -1,5 +1,5 @@
-// Package skilldetail provides the skill detail TUI screen.
-package skilldetail
+// Detail screen for a single skill — KPI cards and materials table.
+package skills
 
 import (
 	"fmt"
@@ -14,16 +14,16 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
-	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/forms"
 )
 
-type dataLoadedMsg struct{ data *model.SkillDetail }
+type skillDetailLoadedMsg struct{ data *model.SkillDetail }
 
 // OpenMaterialMsg is sent when the user presses enter on a material.
 type OpenMaterialMsg struct{ MaterialID string }
 
-// Model is the Bubble Tea model for the skill detail screen.
-type Model struct {
+// DetailModel is the Bubble Tea model for the skill detail screen.
+type DetailModel struct {
 	client  *api.Client
 	skillID string
 	data    *model.SkillDetail
@@ -35,11 +35,11 @@ type Model struct {
 	spinner spinner.Model
 	bar     bbprogress.Model
 	keys    common.SimpleKeyMap
-	overlay *progress.LogForm
+	overlay *forms.LogForm
 }
 
-func New(client *api.Client, skillID string) Model {
-	return Model{
+func NewDetail(client *api.Client, skillID string) DetailModel {
+	return DetailModel{
 		client:  client,
 		skillID: skillID,
 		loading: true,
@@ -55,35 +55,35 @@ func New(client *api.Client, skillID string) Model {
 	}
 }
 
-func load(c *api.Client, skillID string) tea.Cmd {
+func loadSkillDetail(c *api.Client, skillID string) tea.Cmd {
 	return func() tea.Msg {
 		data, err := c.GetSkillData(skillID)
 		if err != nil {
 			return common.ErrMsg{Err: err}
 		}
-		return dataLoadedMsg{data}
+		return skillDetailLoadedMsg{data}
 	}
 }
 
-func (m Model) Init() tea.Cmd {
-	return tea.Batch(load(m.client, m.skillID), m.spinner.Tick)
+func (m DetailModel) Init() tea.Cmd {
+	return tea.Batch(loadSkillDetail(m.client, m.skillID), m.spinner.Tick)
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Route to overlay when active.
 	if m.overlay != nil {
 		if k, ok := msg.(tea.KeyMsg); ok && (k.String() == "ctrl+c" || k.String() == "q") {
 			return m, tea.Quit
 		}
 		updated, cmd := m.overlay.Update(msg)
-		if lf, ok := updated.(progress.LogForm); ok {
+		if lf, ok := updated.(forms.LogForm); ok {
 			m.overlay = &lf
 		}
-		if done, ok := msg.(progress.LogDoneMsg); ok {
+		if done, ok := msg.(forms.LogDoneMsg); ok {
 			m.overlay = nil
 			if !done.Cancelled {
 				return m, tea.Batch(
-					load(m.client, m.skillID),
+					loadSkillDetail(m.client, m.skillID),
 					func() tea.Msg { return common.ProgressLoggedMsg{} },
 					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
 				)
@@ -97,7 +97,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case dataLoadedMsg:
+	case skillDetailLoadedMsg:
 		m.data = msg.data
 		m.loading = false
 
@@ -133,7 +133,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.data != nil && len(m.data.AllMaterials) > 0 {
 				mat := m.data.AllMaterials[m.cursor]
 				if mat.Status == model.StatusActive {
-					lf := progress.NewLogForm(m.client, mat.ID, mat.Name)
+					lf := forms.NewLogForm(m.client, mat.ID, mat.Name)
 					m.overlay = &lf
 					return m, m.overlay.Init()
 				}
@@ -144,16 +144,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			m.loading = true
 			m.err = nil
-			return m, load(m.client, m.skillID)
+			return m, loadSkillDetail(m.client, m.skillID)
 		}
 	}
 	return m, nil
 }
 
 // HasOverlay reports whether a log form is currently open.
-func (m Model) HasOverlay() bool { return m.overlay != nil }
+func (m DetailModel) HasOverlay() bool { return m.overlay != nil }
 
-func (m Model) View() string {
+func (m DetailModel) View() string {
 	if m.loading {
 		return common.SpinnerView(m.spinner)
 	}
@@ -198,7 +198,7 @@ func (m Model) View() string {
 
 		rows := make([][]string, end-start)
 		for i := start; i < end; i++ {
-			rows[i-start] = m.buildMaterialRow(i)
+			rows[i-start] = m.buildSkillDetailMaterialRow(i)
 		}
 
 		selectedIdx := m.cursor - start
@@ -237,7 +237,7 @@ func (m Model) View() string {
 	return b.String()
 }
 
-func (m Model) buildMaterialRow(i int) []string {
+func (m DetailModel) buildSkillDetailMaterialRow(i int) []string {
 	mat := m.data.AllMaterials[i]
 	selected := i == m.cursor
 

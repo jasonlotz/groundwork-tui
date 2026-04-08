@@ -13,7 +13,7 @@ import (
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
-	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/forms"
 )
 
 // NavigateMsg is sent when the user navigates to another screen.
@@ -48,7 +48,7 @@ type Model struct {
 	spinner         spinner.Model
 	bar             bbprogress.Model
 	keys            common.SimpleKeyMap
-	overlay         *progress.LogForm
+	overlay         *forms.LogForm
 }
 
 func New(client *api.Client) Model {
@@ -102,10 +102,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		updated, cmd := m.overlay.Update(msg)
-		if lf, ok := updated.(progress.LogForm); ok {
+		if lf, ok := updated.(forms.LogForm); ok {
 			m.overlay = &lf
 		}
-		if done, ok := msg.(progress.LogDoneMsg); ok {
+		if done, ok := msg.(forms.LogDoneMsg); ok {
 			m.overlay = nil
 			if !done.Cancelled {
 				return m, func() tea.Msg { return common.ProgressLoggedMsg{} }
@@ -162,7 +162,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "l":
 			if len(m.activeMaterials) > 0 {
 				mat := m.activeMaterials[m.cursor]
-				lf := progress.NewLogForm(m.client, mat.ID, mat.Name)
+				lf := forms.NewLogForm(m.client, mat.ID, mat.Name)
 				m.overlay = &lf
 				return m, m.overlay.Init()
 			}
