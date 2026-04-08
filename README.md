@@ -132,8 +132,22 @@ To reconfigure, delete the config file and relaunch.
 | `e`         | Edit selected category                      |
 | `A`         | Archive / unarchive selected category       |
 | `D`         | Delete selected category (must be archived) |
+| `a`         | Toggle show/hide archived                   |
 | `r`         | Refresh                                     |
 | `esc` / `q` | Back                                        |
+
+### Skills
+
+| Key         | Action                                   |
+| ----------- | ---------------------------------------- |
+| `j` / `k`   | Navigate                                 |
+| `enter`     | Open skill                               |
+| `e`         | Edit selected skill                      |
+| `A`         | Archive / unarchive selected skill       |
+| `D`         | Delete selected skill (must be archived) |
+| `a`         | Toggle show/hide archived                |
+| `r`         | Refresh                                  |
+| `esc` / `q` | Back                                     |
 
 ### Category detail (skills list)
 
