@@ -3,7 +3,6 @@ package materials
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -305,9 +304,9 @@ func (m *Model) resetCursor() {
 	}
 }
 
-// applyFilter rebuilds m.filtered from m.materials based on the active search query,
-// then sorts: ACTIVE first, COMPLETE second, INACTIVE last — each group sorted by name.
-// activeOnly is handled server-side (triggers a reload), so it is not re-checked here.
+// applyFilter rebuilds m.filtered from m.materials based on the active search query.
+// Sorting is handled server-side (ACTIVE → COMPLETE → INACTIVE, then alphabetical).
+// activeOnly is also handled server-side (triggers a reload), so it is not re-checked here.
 func (m *Model) applyFilter() {
 	var filtered []model.Material
 	if m.search == "" {
@@ -323,26 +322,7 @@ func (m *Model) applyFilter() {
 			}
 		}
 	}
-	sort.SliceStable(filtered, func(i, j int) bool {
-		ri, rj := statusRank(filtered[i].Status), statusRank(filtered[j].Status)
-		if ri != rj {
-			return ri < rj
-		}
-		return strings.ToLower(filtered[i].Name) < strings.ToLower(filtered[j].Name)
-	})
 	m.filtered = filtered
-}
-
-// statusRank maps material status to a sort order (lower = earlier in the list).
-func statusRank(s model.MaterialStatus) int {
-	switch s {
-	case model.StatusActive:
-		return 0
-	case model.StatusComplete:
-		return 1
-	default: // INACTIVE
-		return 2
-	}
 }
 
 // submitMaterialForm runs the create/update API call after form completion.
