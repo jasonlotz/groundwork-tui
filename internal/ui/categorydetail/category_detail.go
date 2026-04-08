@@ -220,6 +220,12 @@ func (m Model) renderSkillRow(i int) string {
 	}
 	bar := common.RenderBar(m.barNarrow, pct)
 	meta := common.MutedStyle.Render(fmt.Sprintf("%d active / %d total", s.ActiveMaterialCount, s.MaterialCount))
+	dot := common.ColorDot(func() string {
+		if s.Color != nil {
+			return *s.Color
+		}
+		return ""
+	}())
 
-	return cursorStr + nameStyle.Render(common.Truncate(s.Name, 24)) + archived + "  " + bar + "  " + meta
+	return cursorStr + dot + " " + nameStyle.Render(common.Truncate(s.Name, 24)) + archived + "  " + bar + "  " + meta
 }

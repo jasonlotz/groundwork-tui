@@ -172,7 +172,13 @@ func (m Model) View() string {
 				}
 				s := m.skills[r.skillIdx]
 				matCount := common.MutedStyle.Render(fmt.Sprintf("(%d)", s.MaterialCount()))
-				b.WriteString(cursorStr + nameStyle.Render(r.label) + "  " + matCount)
+				dot := common.ColorDot(func() string {
+					if s.Color != nil {
+						return *s.Color
+					}
+					return ""
+				}())
+				b.WriteString(cursorStr + dot + " " + nameStyle.Render(r.label) + "  " + matCount)
 			}
 			b.WriteString("\n")
 		}

@@ -157,7 +157,13 @@ func (m Model) renderRow(i int) string {
 	}
 
 	skillCount := common.MutedStyle.Render(fmt.Sprintf("(%d skills)", cat.SkillCount()))
+	dot := common.ColorDot(func() string {
+		if cat.Color != nil {
+			return *cat.Color
+		}
+		return ""
+	}())
 	name := nameStyle.Render(common.Truncate(cat.Name, 30))
 
-	return cursorStr + name + "  " + skillCount + archived
+	return cursorStr + dot + " " + name + "  " + skillCount + archived
 }

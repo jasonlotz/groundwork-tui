@@ -238,9 +238,15 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 	}
 
 	name := style.Render(mat.Name)
+	dot := common.ColorDot(func() string {
+		if mat.Skill.Color != nil {
+			return *mat.Skill.Color
+		}
+		return ""
+	}())
 	skill := common.MutedStyle.Render(mat.SkillName())
 
-	line1 := cursor + name + "  " + common.MutedStyle.Render(skill)
+	line1 := cursor + name + "  " + dot + " " + common.MutedStyle.Render(skill)
 	line2 := "    " + bar + "  " + common.MutedStyle.Render(units) + weeklyInfo + projInfo
 
 	return line1 + "\n" + line2
