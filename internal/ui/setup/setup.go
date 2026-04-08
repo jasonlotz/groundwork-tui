@@ -12,6 +12,7 @@ import (
 type Model struct {
 	form      *huh.Form
 	cfg       *config.Config
+	confirmed *bool // points to the Confirm field's bound value
 	cancelled bool
 	done      bool
 }
@@ -24,6 +25,7 @@ func New(cfg *config.Config) Model {
 
 	baseURL := cfg.BaseURL
 	apiKey := cfg.APIKey
+	var confirmed bool
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -48,13 +50,14 @@ func New(cfg *config.Config) Model {
 				Title("Save configuration?").
 				Affirmative("Save").
 				Negative("Cancel").
-				Value(new(bool)),
+				Value(&confirmed),
 		),
 	).WithTheme(huh.ThemeDracula())
 
 	return Model{
-		form: form,
-		cfg:  &config.Config{BaseURL: baseURL, APIKey: apiKey},
+		form:      form,
+		cfg:       &config.Config{BaseURL: baseURL, APIKey: apiKey},
+		confirmed: &confirmed,
 	}
 }
 
@@ -77,11 +80,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.form.State == huh.StateCompleted {
-		// Pull values back from form fields.
-		// huh binds directly to the string pointers so they're already updated.
+		// huh updates the bound pointers directly; check confirmed before saving.
 		m.done = true
-		// Check if the user hit Cancel on the confirm field.
-		if confirmField, ok := m.form.Get("Save configuration?").(bool); ok && !confirmField {
+		if m.confirmed == nil || !*m.confirmed {
 			m.cancelled = true
 		}
 		return m, tea.Quit

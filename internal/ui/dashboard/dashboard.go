@@ -4,7 +4,6 @@ package dashboard
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
@@ -175,7 +174,7 @@ func (m Model) View() string {
 		return common.SpinnerView(m.spinner)
 	}
 	if m.err != nil {
-		return common.DangerStyle.Render("\n  Error: " + m.err.Error() + "\n\n  Press r to retry, q to quit.")
+		return common.ErrorView(m.err)
 	}
 
 	var b strings.Builder
@@ -259,17 +258,11 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 	pctLabel := common.MutedStyle.Render(fmt.Sprintf("%.0f%%", mat.PctComplete))
 	line1 := cursor + dot + " " + name + "  " + skill + "  " + pctLabel
 
-	// Bar width: terminal width minus indent(4) minus some right margin.
-	barWidth := m.width - 30
-	if barWidth < 20 {
-		barWidth = 20
-	}
-	if barWidth > 60 {
-		barWidth = 60
-	}
+	// Bar width: terminal width minus indent and labels.
+	barWidth := common.ClampBarWidth(m.width)
 
 	// Day-of-week pace: Mon=1/7 … Sun=7/7 (matches web app logic).
-	pacePct := paceFraction()
+	pacePct := common.PaceFraction()
 
 	// Line 2: weekly goal bar (or blank spacer if no goal).
 	var line2 string
@@ -298,17 +291,4 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 	line3 := "    " + overallBar + "  " + common.MutedStyle.Render(overallLabel)
 
 	return line1 + "\n" + line2 + "\n" + line3 + "\n"
-}
-
-// paceFraction returns the expected weekly progress fraction based on the current day.
-// Mon=1/7, Tue=2/7, … Sun=7/7.
-func paceFraction() float64 {
-	// time.Weekday: Sun=0, Mon=1, …, Sat=6
-	// We want Mon=1 … Sun=7.
-	dayOfWeek := int(time.Now().Weekday())
-	dayIndex := dayOfWeek
-	if dayIndex == 0 {
-		dayIndex = 7
-	}
-	return float64(dayIndex) / 7.0
 }

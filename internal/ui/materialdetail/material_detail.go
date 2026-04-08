@@ -4,7 +4,6 @@ package materialdetail
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
@@ -109,15 +108,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.logCursor--
 			}
 		case "l":
-			if m.data != nil && m.data.Material.Status == model.StatusActive {
+			if m.data == nil {
+				break
+			}
+			if m.data.Material.Status == model.StatusActive {
 				id := m.materialID
 				name := m.data.Material.Name
 				return m, func() tea.Msg { return LogFromDetailMsg{MaterialID: id, MaterialName: name} }
 			}
-			if m.data != nil && m.data.Material.Status != model.StatusActive {
-				return m, func() tea.Msg {
-					return common.ToastMsg{Text: "Only active materials can be logged.", IsError: true}
-				}
+			return m, func() tea.Msg {
+				return common.ToastMsg{Text: "Only active materials can be logged.", IsError: true}
 			}
 		case "r":
 			m.loading = true
@@ -180,18 +180,12 @@ func (m Model) View() string {
 	b.WriteString(common.RenderKPICards(cards))
 	b.WriteString("\n")
 
-	// Bar width: match dashboard sizing.
-	barWidth := m.width - 30
-	if barWidth < 20 {
-		barWidth = 20
-	}
-	if barWidth > 60 {
-		barWidth = 60
-	}
+	// Bar width: terminal width minus indent and labels.
+	barWidth := common.ClampBarWidth(m.width)
 
 	// Weekly goal bar (only when a goal is set).
 	if mat.WeeklyUnitGoal != nil && *mat.WeeklyUnitGoal > 0 {
-		pacePct := paceFraction()
+		pacePct := common.PaceFraction()
 		weeklyPct := mat.UnitsThisWeek / float64(*mat.WeeklyUnitGoal)
 		weeklyBar := common.RenderWeeklyBar(barWidth, weeklyPct, pacePct)
 		weeklyLabel := fmt.Sprintf("%.4g / %d %s this week",
@@ -293,15 +287,4 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
 	return b.String()
-}
-
-// paceFraction returns the expected weekly progress fraction based on the current day.
-// Mon=1/7, Tue=2/7, … Sun=7/7.
-func paceFraction() float64 {
-	dayOfWeek := int(time.Now().Weekday())
-	dayIndex := dayOfWeek
-	if dayIndex == 0 {
-		dayIndex = 7
-	}
-	return float64(dayIndex) / 7.0
 }

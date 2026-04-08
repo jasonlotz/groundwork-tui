@@ -104,15 +104,18 @@ var (
 
 	// TableCellStyle is the default cell style in lipgloss/table renders.
 	TableCellStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
+
+	// titleRuleStyle styles the horizontal rule drawn beneath the title.
+	titleRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
 )
 
-// RenderTitle renders a decorative title with a violet rule beneath it.
+// RenderTitle renders a decorative title with a horizontal rule beneath it.
 func RenderTitle(s string, width int) string {
 	if width < 1 {
 		width = 40
 	}
 	title := TitleStyle.Render(s)
-	rule := lipgloss.NewStyle().Foreground(ColorBorder).Render(strings.Repeat("─", width))
+	rule := titleRuleStyle.Render(strings.Repeat("─", width))
 	return fmt.Sprintf("%s\n%s", title, rule)
 }
 
@@ -176,11 +179,6 @@ func VisibleWindow(cursor, total, height int) (start, end int) {
 	return start, end
 }
 
-// LoadingView returns the standard loading placeholder string.
-func LoadingView() string {
-	return MutedStyle.Render("\n  Loading…")
-}
-
 // ErrorView returns the standard error message string.
 func ErrorView(err error) string {
 	return DangerStyle.Render("\n  Error: " + err.Error() + "\n\n  Press r to retry, esc to go back.")
@@ -206,6 +204,31 @@ func KeyHelp(key, desc string) string {
 	return k + "  " + MutedStyle.Render(desc)
 }
 
+// ClampBarWidth computes a progress bar width from the terminal width,
+// subtracting a fixed margin and clamping to the range [20, 60].
+// The margin of 30 accounts for cursor, dot, labels, and spacing.
+func ClampBarWidth(termWidth int) int {
+	w := termWidth - 30
+	if w < 20 {
+		return 20
+	}
+	if w > 60 {
+		return 60
+	}
+	return w
+}
+
+// PaceFraction returns the expected weekly progress fraction based on the current day.
+// Mon=1/7, Tue=2/7, … Sun=7/7. Matches the pace logic used in the web app.
+func PaceFraction() float64 {
+	// time.Weekday: Sun=0, Mon=1, …, Sat=6. We remap to Mon=1 … Sun=7.
+	d := int(time.Now().Weekday())
+	if d == 0 {
+		d = 7
+	}
+	return float64(d) / 7.0
+}
+
 // FormatProjectedDate parses a "YYYY-MM-DD" projected end date string and
 // returns it in "Jan 2, 2006" format (e.g. "Mar 23, 2026").
 // Returns the original string unchanged if parsing fails.
@@ -228,16 +251,17 @@ func RenderWeeklyBar(width int, pct, pacePct float64) string {
 		pct = 1
 	}
 
-	// Choose color based on pace comparison (matches web app thresholds).
-	var fillStyle lipgloss.Style
+	// Choose fill color based on pace comparison (matches web app thresholds).
+	var fillColor lipgloss.Color
 	switch {
 	case pct >= pacePct:
-		fillStyle = lipgloss.NewStyle().Foreground(ColorSuccess)
+		fillColor = ColorSuccess
 	case pct >= pacePct-0.20:
-		fillStyle = lipgloss.NewStyle().Foreground(ColorWarning)
+		fillColor = ColorWarning
 	default:
-		fillStyle = lipgloss.NewStyle().Foreground(ColorDanger)
+		fillColor = ColorDanger
 	}
+	fillStyle := lipgloss.NewStyle().Foreground(fillColor)
 	emptyStyle := lipgloss.NewStyle().Foreground(ColorBorder)
 
 	filled := int(pct * float64(width))

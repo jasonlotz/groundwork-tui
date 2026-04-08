@@ -85,7 +85,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case materialsLoadedMsg:
 		m.materials = msg.data
-		m.applyFilter()
+		m.resetCursor()
 		m.loading = false
 
 	case common.ErrMsg:
@@ -142,7 +142,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) applyFilter() {
+func (m *Model) resetCursor() {
 	m.filtered = m.materials
 	if m.cursor >= len(m.filtered) {
 		m.cursor = max(0, len(m.filtered)-1)
@@ -248,35 +248,4 @@ func (m Model) renderRow(i int) string {
 	line2 := "    " + bar + "  " + progressText + "  " + meta + weeklyInfo
 
 	return line1 + "\n" + line2
-}
-
-func truncate(s string, n int) string {
-	if len([]rune(s)) <= n {
-		return s
-	}
-	runes := []rune(s)
-	return string(runes[:n-1]) + "…"
-}
-
-func visibleWindow(cursor, total, height int) (start, end int) {
-	if total <= height {
-		return 0, total
-	}
-	start = cursor - height/2
-	if start < 0 {
-		start = 0
-	}
-	end = start + height
-	if end > total {
-		end = total
-		start = end - height
-	}
-	return start, end
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

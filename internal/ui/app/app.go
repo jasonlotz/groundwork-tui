@@ -31,11 +31,14 @@ const (
 	screenMaterialDetail
 )
 
-// activeMaterialsReadyMsg carries active materials fetched for use in log form.
-type activeMaterialsReadyMsg struct {
-	materialID   string
-	materialName string
-	returnTo     *screenState
+// openLogForm switches to the log form screen for the given material.
+// returnTo is the screen state to restore (and reload) after the form completes.
+func (m *Model) openLogForm(materialID, materialName string, returnTo *screenState) tea.Cmd {
+	lf := progress.NewLogForm(m.client, materialID, materialName)
+	m.logForm = &lf
+	m.logReturnTo = returnTo
+	m.pushScreen(screenLogForm)
+	return m.logForm.Init()
 }
 
 // screenState holds the current screen + its associated model pointer so we can
@@ -134,9 +137,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// --- dashboard: log progress on selected material ---
 	case dashboard.LogFromDashboardMsg:
-		return m, func() tea.Msg {
-			return activeMaterialsReadyMsg{materialID: msg.MaterialID, materialName: msg.MaterialName}
-		}
+		return m, m.openLogForm(msg.MaterialID, msg.MaterialName, nil)
 
 	// --- dashboard: open material detail from active materials list ---
 	case dashboard.OpenMaterialMsg:
@@ -175,9 +176,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case skilldetail.LogFromSkillMsg:
 		returnState := &screenState{id: m.current, skillDetail: m.skillDetail}
-		return m, func() tea.Msg {
-			return activeMaterialsReadyMsg{materialID: msg.MaterialID, materialName: msg.MaterialName, returnTo: returnState}
-		}
+		return m, m.openLogForm(msg.MaterialID, msg.MaterialName, returnState)
 
 	// --- material detail: log ---
 	case materialdetail.LogFromDetailMsg:
@@ -187,9 +186,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			skillDetail:    m.skillDetail,
 			categoryDetail: m.categoryDetail,
 		}
-		return m, func() tea.Msg {
-			return activeMaterialsReadyMsg{materialID: msg.MaterialID, materialName: msg.MaterialName, returnTo: returnState}
-		}
+		return m, m.openLogForm(msg.MaterialID, msg.MaterialName, returnState)
 
 	// --- materials list: open detail or log ---
 	case materials.OpenMaterialMsg:
@@ -199,19 +196,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.materialDetail.Init()
 
 	case materials.LogFromMaterialMsg:
-		return m, func() tea.Msg {
-			return activeMaterialsReadyMsg{materialID: msg.MaterialID, materialName: msg.MaterialName}
-		}
+		return m, m.openLogForm(msg.MaterialID, msg.MaterialName, nil)
 
 	// --- open log form ---
-	case activeMaterialsReadyMsg:
-		lf := progress.NewLogForm(m.client, msg.materialID, msg.materialName)
-		m.logForm = &lf
-		m.logReturnTo = msg.returnTo
-		m.pushScreen(screenLogForm)
-		return m, m.logForm.Init()
-
-	// --- log form done ---
 	case progress.LogDoneMsg:
 		m.popScreen()
 		if !msg.Cancelled {
