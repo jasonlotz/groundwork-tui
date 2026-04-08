@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +17,9 @@ import (
 )
 
 type dataLoadedMsg struct{ data *model.CategoryDetail }
+
+// skillMutatedMsg is an internal result from submitSkillForm / submitSkillConfirm.
+type skillMutatedMsg struct{ toast string }
 
 // OpenSkillMsg is sent when the user presses enter on a skill.
 type OpenSkillMsg struct{ SkillID string }
@@ -35,7 +37,6 @@ type Model struct {
 	spinner    spinner.Model
 	barWide    progress.Model // width 16 — active materials list
 	barNarrow  progress.Model // width 12 — skill rows
-	help       help.Model
 	keys       common.SimpleKeyMap
 	overlay    tea.Model
 }
@@ -48,7 +49,6 @@ func New(client *api.Client, categoryID string) Model {
 		spinner:    common.NewSpinner(),
 		barWide:    common.NewProgressBar(16),
 		barNarrow:  common.NewProgressBar(12),
-		help:       common.NewHelp(),
 		keys:       buildKeys(false),
 	}
 }
@@ -114,14 +114,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, cmd
 
-		case dataLoadedMsg:
-			m.data = msg.data
-			m.loading = false
-			if m.cursor >= skillCount(m.data) && m.cursor > 0 {
-				m.cursor = skillCount(m.data) - 1
+		case skillMutatedMsg:
+			var cmds []tea.Cmd
+			if msg.toast != "" {
+				t := msg.toast
+				cmds = append(cmds, func() tea.Msg { return common.ToastMsg{Text: t} })
 			}
-			m.keys = buildKeys(m.selectedIsArchived())
-			return m, nil
+			cmds = append(cmds, func() tea.Msg { return common.SkillChangedMsg{} })
+			cmds = append(cmds, load(m.client, m.categoryID))
+			return m, tea.Batch(cmds...)
 
 		case common.ToastMsg:
 			return m, func() tea.Msg { return msg }
@@ -135,7 +136,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.help.Width = msg.Width
 
 	case dataLoadedMsg:
 		m.data = msg.data
@@ -144,6 +144,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = skillCount(m.data) - 1
 		}
 		m.keys = buildKeys(m.selectedIsArchived())
+
+	case skillMutatedMsg:
+		var cmds []tea.Cmd
+		if msg.toast != "" {
+			t := msg.toast
+			cmds = append(cmds, func() tea.Msg { return common.ToastMsg{Text: t} })
+		}
+		cmds = append(cmds, func() tea.Msg { return common.SkillChangedMsg{} })
+		cmds = append(cmds, load(m.client, m.categoryID))
+		return m, tea.Batch(cmds...)
 
 	case common.ErrMsg:
 		m.err = msg.Err
@@ -248,23 +258,18 @@ func (m Model) selectedIsArchived() bool {
 func submitSkillForm(c *api.Client, categoryID string, sf common.SkillForm) tea.Cmd {
 	return func() tea.Msg {
 		var err error
+		var action string
 		if sf.IsEdit() {
 			err = c.UpdateSkill(sf.EditID(), sf.Name(), categoryID, sf.Color())
+			action = "updated"
 		} else {
 			err = c.CreateSkill(sf.Name(), categoryID, sf.Color())
+			action = "created"
 		}
 		if err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
-		data, loadErr := c.GetCategoryData(categoryID)
-		if loadErr != nil {
-			action := "created"
-			if sf.IsEdit() {
-				action = "updated"
-			}
-			return common.ToastMsg{Text: "Skill " + action + " (refresh to see changes)"}
-		}
-		return dataLoadedMsg{data: data}
+		return skillMutatedMsg{toast: "Skill " + action}
 	}
 }
 
@@ -275,7 +280,6 @@ func submitSkillConfirm(c *api.Client, d *model.CategoryDetail, cursor int, tag 
 			return nil
 		}
 		s := d.SkillsSummary[cursor]
-		categoryID := d.Category.ID
 
 		var err error
 		var successText string
@@ -296,13 +300,7 @@ func submitSkillConfirm(c *api.Client, d *model.CategoryDetail, cursor int, tag 
 		if err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
-		_ = successText
-
-		data, loadErr := c.GetCategoryData(categoryID)
-		if loadErr != nil {
-			return common.ToastMsg{Text: successText + " (refresh to see changes)"}
-		}
-		return dataLoadedMsg{data: data}
+		return skillMutatedMsg{toast: successText}
 	}
 }
 
@@ -412,7 +410,7 @@ func (m Model) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
+	b.WriteString(common.RenderHelp(m.keys, m.width))
 	return b.String()
 }
 

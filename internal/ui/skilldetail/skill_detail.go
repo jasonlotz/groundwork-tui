@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
 	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -35,7 +34,6 @@ type Model struct {
 	height  int
 	spinner spinner.Model
 	bar     bbprogress.Model
-	help    help.Model
 	keys    common.SimpleKeyMap
 	overlay *progress.LogForm
 }
@@ -47,7 +45,6 @@ func New(client *api.Client, skillID string) Model {
 		loading: true,
 		spinner: common.NewSpinner(),
 		bar:     common.NewProgressBar(16),
-		help:    common.NewHelp(),
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "detail"),
@@ -87,6 +84,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !done.Cancelled {
 				return m, tea.Batch(
 					load(m.client, m.skillID),
+					func() tea.Msg { return common.ProgressLoggedMsg{} },
 					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
 				)
 			}
@@ -98,7 +96,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.help.Width = msg.Width
 
 	case dataLoadedMsg:
 		m.data = msg.data
@@ -229,7 +226,7 @@ func (m Model) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
+	b.WriteString(common.RenderHelp(m.keys, m.width))
 
 	if m.overlay != nil {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.overlay.View())

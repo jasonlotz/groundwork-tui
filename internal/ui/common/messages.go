@@ -11,3 +11,20 @@ type ToastMsg struct {
 
 // ErrMsg wraps an error for use as a Bubble Tea message.
 type ErrMsg struct{ Err error }
+
+// --- Domain events ---
+// These are broadcast globally by mutation sites. Any screen that cares about
+// a domain change handles the event and reloads itself, regardless of whether
+// it is currently active or in the background.
+
+// MaterialChangedMsg is broadcast after any material is created, updated, or deleted.
+type MaterialChangedMsg struct{}
+
+// ProgressLoggedMsg is broadcast after a progress log entry is successfully created.
+type ProgressLoggedMsg struct{}
+
+// SkillChangedMsg is broadcast after any skill is created, updated, archived, unarchived, or deleted.
+type SkillChangedMsg struct{}
+
+// CategoryChangedMsg is broadcast after any category is created, updated, archived, unarchived, or deleted.
+type CategoryChangedMsg struct{}

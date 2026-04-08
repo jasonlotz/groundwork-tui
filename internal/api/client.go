@@ -300,12 +300,13 @@ type logUnitsInput struct {
 
 // LogUnits calls progress.logUnits (mutation).
 func (c *Client) LogUnits(materialID, date string, units float64, notes *string) error {
-	_, err := mutation[struct{}](c, "progress.logUnits", logUnitsInput{
+	input := logUnitsInput{
 		MaterialID: materialID,
-		Date:       date,
+		Date:       date + "T00:00:00.000Z",
 		Units:      units,
 		Notes:      notes,
-	})
+	}
+	_, err := mutationWithMeta[struct{}](c, "progress.logUnits", superJSONDates(input, "date"))
 	return err
 }
 

@@ -55,26 +55,7 @@ const (
 
 // Label returns a human-readable plural label for a unit type.
 func (u UnitType) Label() string {
-	switch u {
-	case UnitTypeHours:
-		return "hrs"
-	case UnitTypeChapters:
-		return "ch"
-	case UnitTypeSections:
-		return "sec"
-	case UnitTypeModules:
-		return "mod"
-	case UnitTypeEpisodes:
-		return "ep"
-	case UnitTypePages:
-		return "pg"
-	case UnitTypeLessons:
-		return "les"
-	case UnitTypeVideos:
-		return "vid"
-	default:
-		return "u"
-	}
+	return u.LabelFull()
 }
 
 // LabelFull returns the full plural label.

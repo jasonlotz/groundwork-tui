@@ -497,15 +497,15 @@ func buildMaterialForm(st *materialFormState, skills []model.Skill, types []mode
 
 			huh.NewInput().
 				Title("Start date (optional)").
-				Description("YYYY-MM-DD").
-				Placeholder("e.g. 2025-01-01").
+				Description("YYYYMMDD or YYYY-MM-DD").
+				Placeholder("e.g. 20250101").
 				Validate(validateOptionalDate).
 				Value(&st.startDate),
 
 			huh.NewInput().
 				Title("Completed date (optional)").
-				Description("YYYY-MM-DD").
-				Placeholder("e.g. 2025-06-30").
+				Description("YYYYMMDD or YYYY-MM-DD").
+				Placeholder("e.g. 20250630").
 				Validate(validateOptionalDate).
 				Value(&st.completedDate),
 
@@ -540,7 +540,18 @@ func validateOptionalDate(s string) error {
 	if s == "" {
 		return nil
 	}
-	return ValidateDate(s)
+	return ValidateDate(normalizeDateInput(s))
+}
+
+// normalizeDateInput converts a bare 8-digit string (YYYYMMDD) to YYYY-MM-DD.
+// Any other input is returned unchanged.
+func normalizeDateInput(s string) string {
+	if len(s) == 8 {
+		if _, err := strconv.Atoi(s); err == nil {
+			return s[:4] + "-" + s[4:6] + "-" + s[6:]
+		}
+	}
+	return s
 }
 
 // IsEdit reports whether this form is editing an existing material.
@@ -565,11 +576,11 @@ func (mf MaterialForm) Result() MaterialFormResult {
 		r.URL = &u
 	}
 	if st.startDate != "" {
-		d := st.startDate
+		d := normalizeDateInput(st.startDate)
 		r.StartDate = &d
 	}
 	if st.completedDate != "" {
-		d := st.completedDate
+		d := normalizeDateInput(st.completedDate)
 		r.CompletedDate = &d
 	}
 	if st.weeklyGoalStr != "" {

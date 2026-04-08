@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
 	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +17,9 @@ import (
 )
 
 type materialsLoadedMsg struct{ data []model.Material }
+
+// materialMutatedMsg is an internal result from a create/update/delete command.
+type materialMutatedMsg struct{ toast string }
 
 // preloadMsg carries skills + types fetched before opening the material form.
 type preloadMsg struct {
@@ -43,7 +45,6 @@ type Model struct {
 	height     int
 	spinner    spinner.Model
 	bar        bbprogress.Model
-	help       help.Model
 	keys       common.SimpleKeyMap
 	overlay    tea.Model
 }
@@ -55,7 +56,6 @@ func New(client *api.Client) Model {
 		loading:    true,
 		spinner:    common.NewSpinner(),
 		bar:        common.NewProgressBar(18),
-		help:       common.NewHelp(),
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "detail"),
@@ -114,10 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case progress.LogDoneMsg:
 			m.overlay = nil
 			if !msg.Cancelled {
-				return m, tea.Batch(
-					load(m.client, m.activeOnly),
-					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
-				)
+				return m, func() tea.Msg { return common.ProgressLoggedMsg{} }
 			}
 			return m, nil
 
@@ -155,12 +152,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.help.Width = msg.Width
 
 	case materialsLoadedMsg:
 		m.materials = msg.data
 		m.resetCursor()
 		m.loading = false
+
+	case materialMutatedMsg:
+		t := msg.toast
+		return m, tea.Batch(
+			func() tea.Msg { return common.ToastMsg{Text: t} },
+			func() tea.Msg { return common.MaterialChangedMsg{} },
+		)
+
+	case common.MaterialChangedMsg:
+		return m, load(m.client, m.activeOnly)
 
 	case preloadMsg:
 		// Preload completed — open the form overlay.
@@ -293,11 +299,7 @@ func submitMaterialForm(c *api.Client, activeOnly bool, mf common.MaterialForm) 
 		if mf.IsEdit() {
 			action = "updated"
 		}
-		data, loadErr := c.GetAllMaterials(activeOnly)
-		if loadErr != nil {
-			return common.ToastMsg{Text: "Material " + action + " (refresh to see changes)"}
-		}
-		return materialsLoadedMsg{data: data}
+		return materialMutatedMsg{toast: "Material " + action + "!"}
 	}
 }
 
@@ -311,11 +313,7 @@ func deleteMaterial(c *api.Client, filtered []model.Material, cursor int, active
 		if err := c.DeleteMaterial(mat.ID); err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
-		data, loadErr := c.GetAllMaterials(activeOnly)
-		if loadErr != nil {
-			return common.ToastMsg{Text: fmt.Sprintf("Deleted \"%s\" (refresh to see changes)", common.Truncate(mat.Name, 30))}
-		}
-		return materialsLoadedMsg{data: data}
+		return materialMutatedMsg{toast: fmt.Sprintf("Deleted \"%s\"", common.Truncate(mat.Name, 30))}
 	}
 }
 
@@ -362,7 +360,7 @@ func (m Model) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
+	b.WriteString(common.RenderHelp(m.keys, m.width))
 	return b.String()
 }
 

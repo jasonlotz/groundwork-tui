@@ -134,6 +134,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.popScreen()
 		return m, nil
 
+	// --- domain events: fan out to all persistent screens ---
+	case common.MaterialChangedMsg, common.ProgressLoggedMsg, common.SkillChangedMsg, common.CategoryChangedMsg:
+		var cmds []tea.Cmd
+		if updated, cmd := m.dashboard.Update(msg); updated != nil {
+			m.dashboard = updated.(dashboard.Model)
+			cmds = append(cmds, cmd)
+		}
+		if updated, cmd := m.materialsList.Update(msg); updated != nil {
+			m.materialsList = updated.(materials.Model)
+			cmds = append(cmds, cmd)
+		}
+		if updated, cmd := m.skillsList.Update(msg); updated != nil {
+			m.skillsList = updated.(skills.Model)
+			cmds = append(cmds, cmd)
+		}
+		if updated, cmd := m.progressList.Update(msg); updated != nil {
+			m.progressList = updated.(progress.Model)
+			cmds = append(cmds, cmd)
+		}
+		if updated, cmd := m.categoriesList.Update(msg); updated != nil {
+			m.categoriesList = updated.(categories.Model)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+
 	// --- dashboard navigation ---
 	case dashboard.NavigateMsg:
 		return m.handleDashboardNav(msg)

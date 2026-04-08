@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
 	bbprogress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,6 +26,13 @@ type preloadMsg struct {
 	types  []model.MaterialType
 }
 
+// materialMutatedMsg is an internal result from a mutation command.
+// navigateBack is true when the screen should close (e.g. after delete).
+type materialMutatedMsg struct {
+	toast        string
+	navigateBack bool
+}
+
 // Model is the Bubble Tea model for the material detail screen.
 type Model struct {
 	client     *api.Client
@@ -39,7 +45,6 @@ type Model struct {
 	height     int
 	spinner    spinner.Model
 	bar        bbprogress.Model
-	help       help.Model
 	keys       common.SimpleKeyMap
 	overlay    tea.Model
 }
@@ -51,7 +56,6 @@ func New(client *api.Client, materialID string) Model {
 		loading:    true,
 		spinner:    common.NewSpinner(),
 		bar:        common.NewProgressBar(40),
-		help:       common.NewHelp(),
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "scroll log", "j", "k", "down", "up"),
 			common.KB("l", "log progress"),
@@ -108,6 +112,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !msg.Cancelled {
 				return m, tea.Batch(
 					load(m.client, m.materialID),
+					func() tea.Msg { return common.ProgressLoggedMsg{} },
 					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
 				)
 			}
@@ -141,11 +146,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.help.Width = msg.Width
 
 	case dataLoadedMsg:
 		m.data = msg.data
 		m.loading = false
+
+	case materialMutatedMsg:
+		cmds := []tea.Cmd{
+			func() tea.Msg { return common.MaterialChangedMsg{} },
+		}
+		if msg.toast != "" {
+			t := msg.toast
+			cmds = append(cmds, func() tea.Msg { return common.ToastMsg{Text: t} })
+		}
+		if msg.navigateBack {
+			cmds = append(cmds, func() tea.Msg { return common.GoBackMsg{} })
+		} else {
+			cmds = append(cmds, load(m.client, m.materialID))
+		}
+		return m, tea.Batch(cmds...)
 
 	case preloadMsg:
 		// Preload completed — open the edit form overlay pre-populated from current data.
@@ -252,22 +271,17 @@ func submitMaterialForm(c *api.Client, materialID string, mf common.MaterialForm
 		if err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
-		data, loadErr := c.GetMaterialDetail(materialID)
-		if loadErr != nil {
-			return common.ToastMsg{Text: "Material updated (refresh to see changes)"}
-		}
-		return dataLoadedMsg{data: data}
+		return materialMutatedMsg{toast: "Material updated!", navigateBack: false}
 	}
 }
 
-// deleteMaterial deletes the material and navigates back.
+// deleteMaterial deletes the material and signals navigation back + domain event.
 func deleteMaterial(c *api.Client, materialID string) tea.Cmd {
 	return func() tea.Msg {
 		if err := c.DeleteMaterial(materialID); err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
-		// Navigate back since the material no longer exists.
-		return common.GoBackMsg{}
+		return materialMutatedMsg{toast: "Material deleted.", navigateBack: true}
 	}
 }
 
@@ -432,6 +446,6 @@ func (m Model) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
+	b.WriteString(common.RenderHelp(m.keys, m.width))
 	return b.String()
 }

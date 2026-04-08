@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -31,7 +30,6 @@ type Model struct {
 	width      int
 	height     int
 	spinner    spinner.Model
-	help       help.Model
 	keys       common.SimpleKeyMap
 	overlay    tea.Model
 }
@@ -41,7 +39,6 @@ func New(client *api.Client) Model {
 		client:  client,
 		loading: true,
 		spinner: common.NewSpinner(),
-		help:    common.NewHelp(),
 		keys:    buildKeys(false),
 	}
 }
@@ -95,9 +92,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlay = nil
 			if !msg.Cancelled {
 				if cf, ok := updated.(common.CategoryForm); ok {
-					return m, tea.Batch(submitCategoryForm(m.client, cf), func() tea.Msg {
-						return nil
-					})
+					return m, submitCategoryForm(m.client, cf)
 				}
 			}
 			return m, cmd
@@ -105,20 +100,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case common.ConfirmDoneMsg:
 			m.overlay = nil
 			if msg.Confirmed {
-				return m, tea.Batch(submitConfirm(m.client, m.categories, m.cursor, msg.Tag), func() tea.Msg {
-					return nil
-				})
+				return m, submitConfirm(m.client, m.categories, m.cursor, msg.Tag)
 			}
 			return m, cmd
-
-		case categoriesLoadedMsg:
-			m.categories = msg.data
-			m.loading = false
-			if m.cursor >= len(m.categories) && m.cursor > 0 {
-				m.cursor = len(m.categories) - 1
-			}
-			m.keys = buildKeys(m.selectedIsArchived())
-			return m, nil
 
 		case common.ToastMsg:
 			return m, func() tea.Msg { return msg }
@@ -132,7 +116,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.help.Width = msg.Width
 
 	case categoriesLoadedMsg:
 		m.categories = msg.data
@@ -141,6 +124,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = len(m.categories) - 1
 		}
 		m.keys = buildKeys(m.selectedIsArchived())
+
+	case common.CategoryChangedMsg:
+		return m, load(m.client)
+
+	case categoryMutatedMsg:
+		return m, tea.Batch(
+			func() tea.Msg { return common.ToastMsg{Text: msg.toast} },
+			func() tea.Msg { return common.CategoryChangedMsg{} },
+		)
 
 	case common.ErrMsg:
 		m.err = msg.Err
@@ -233,6 +225,9 @@ func (m Model) selectedIsArchived() bool {
 	return m.categories[m.cursor].IsArchived
 }
 
+// categoryMutatedMsg is an internal message carrying the result of a mutation.
+type categoryMutatedMsg struct{ toast string }
+
 // submitCategoryForm runs the create or update API call after form completion.
 func submitCategoryForm(c *api.Client, cf common.CategoryForm) tea.Cmd {
 	return func() tea.Msg {
@@ -245,15 +240,7 @@ func submitCategoryForm(c *api.Client, cf common.CategoryForm) tea.Cmd {
 		if err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
-		action := "created"
-		if cf.IsEdit() {
-			action = "updated"
-		}
-		data, loadErr := c.GetAllCategories()
-		if loadErr != nil {
-			return common.ToastMsg{Text: "Category " + action + " (refresh to see changes)", IsError: false}
-		}
-		return categoriesLoadedMsg{data: data}
+		return common.CategoryChangedMsg{}
 	}
 }
 
@@ -285,15 +272,7 @@ func submitConfirm(c *api.Client, cats []model.Category, cursor int, tag string)
 		if err != nil {
 			return common.ToastMsg{Text: "Error: " + err.Error(), IsError: true}
 		}
-
-		data, loadErr := c.GetAllCategories()
-		if loadErr != nil {
-			return common.ToastMsg{Text: successText + " (refresh to see changes)"}
-		}
-		_ = successText
-		// Return both toast and reload by sending reload; toast fires separately below.
-		// We batch via a second message in the caller — here just reload.
-		return categoriesLoadedMsg{data: data}
+		return categoryMutatedMsg{toast: successText}
 	}
 }
 
@@ -356,7 +335,7 @@ func (m Model) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(common.HelpStyle.Render(m.help.View(m.keys)))
+	b.WriteString(common.RenderHelp(m.keys, m.width))
 	return b.String()
 }
 

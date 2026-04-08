@@ -37,6 +37,15 @@ func (k SimpleKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{k.Bindings}
 }
 
+// RenderHelp renders the help bar for a SimpleKeyMap at the given width.
+// It uses the Bubbles help.Model internally but is stateless — callers that
+// don't need width-aware truncation can use this instead of storing a help.Model.
+func RenderHelp(keys SimpleKeyMap, width int) string {
+	h := NewHelp()
+	h.Width = width
+	return HelpStyle.Render(h.View(keys))
+}
+
 // NewHelp returns a help.Model styled with the project palette.
 func NewHelp() help.Model {
 	h := help.New()
