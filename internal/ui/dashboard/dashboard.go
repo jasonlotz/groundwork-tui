@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
@@ -218,7 +217,7 @@ func (m Model) renderKPIs() string {
 
 func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 	cursor := "  "
-	style := lipgloss.NewStyle()
+	style := common.DefaultNameStyle
 	if i == m.cursor {
 		cursor = common.SelectedStyle.Render("▶ ")
 		style = common.SelectedStyle

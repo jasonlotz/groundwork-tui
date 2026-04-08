@@ -151,15 +151,15 @@ func (m Model) View() string {
 			Rows(rows...).
 			Border(lipgloss.HiddenBorder()).
 			BorderHeader(true).
-			BorderStyle(lipgloss.NewStyle().Foreground(common.ColorBorder)).
+			BorderStyle(common.TableBorderStyle).
 			StyleFunc(func(row, col int) lipgloss.Style {
 				switch {
 				case row == table.HeaderRow:
-					return lipgloss.NewStyle().Foreground(common.ColorMuted).Bold(true)
+					return common.TableHeaderStyle
 				case row == selectedIdx:
-					return lipgloss.NewStyle().Foreground(common.ColorHighlight).Bold(true)
+					return common.TableSelectedStyle
 				default:
-					return lipgloss.NewStyle().Foreground(common.ColorSubtle)
+					return common.TableCellStyle
 				}
 			})
 

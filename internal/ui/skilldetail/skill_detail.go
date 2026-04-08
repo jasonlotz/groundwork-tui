@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/model"
@@ -195,7 +194,7 @@ func (m Model) renderMaterialRow(i int) string {
 	selected := i == m.cursor
 
 	cursorStr := "  "
-	nameStyle := lipgloss.NewStyle()
+	nameStyle := common.DefaultNameStyle
 	switch {
 	case selected:
 		cursorStr = common.SelectedStyle.Render("▶ ")
@@ -220,7 +219,7 @@ func (m Model) renderMaterialRow(i int) string {
 		statusStyle = common.SuccessStyle
 		statusStr = "active"
 	case model.StatusComplete:
-		statusStyle = lipgloss.NewStyle().Foreground(common.ColorPrimary)
+		statusStyle = common.CompletedStatusStyle
 		statusStr = "done"
 	}
 

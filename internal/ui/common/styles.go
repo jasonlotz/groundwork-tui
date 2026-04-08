@@ -86,6 +86,27 @@ var (
 	ArchivedNameStyle = lipgloss.NewStyle().
 				Foreground(ColorMuted).
 				Italic(true)
+
+	// DefaultNameStyle is a plain unstyled style used as the default for list row names.
+	DefaultNameStyle = lipgloss.NewStyle()
+
+	// CompletedStatusStyle renders a "done" status label in the primary violet color.
+	CompletedStatusStyle = lipgloss.NewStyle().Foreground(ColorPrimary)
+
+	// SpinnerStyle is the foreground color applied to the loading spinner.
+	SpinnerStyle = lipgloss.NewStyle().Foreground(ColorHighlight)
+
+	// TableBorderStyle styles the separator lines in lipgloss/table renders.
+	TableBorderStyle = lipgloss.NewStyle().Foreground(ColorBorder)
+
+	// TableHeaderStyle styles the header row in lipgloss/table renders.
+	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorMuted).Bold(true)
+
+	// TableSelectedStyle highlights the selected row in lipgloss/table renders.
+	TableSelectedStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
+
+	// TableCellStyle is the default cell style in lipgloss/table renders.
+	TableCellStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
 )
 
 // RenderTitle renders a decorative title with a violet rule beneath it.

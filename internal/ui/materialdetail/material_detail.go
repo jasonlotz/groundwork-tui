@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
@@ -148,7 +147,7 @@ func (m Model) View() string {
 	case model.StatusActive:
 		statusStyle = common.SuccessStyle
 	case model.StatusComplete:
-		statusStyle = lipgloss.NewStyle().Foreground(common.ColorPrimary)
+		statusStyle = common.CompletedStatusStyle
 	}
 
 	// KPI row
