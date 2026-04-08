@@ -314,6 +314,25 @@ case screenDashboard:
 
 This is the key architectural insight: **screens never talk to each other directly**. A screen emits a typed message upward; the root `app.Update()` intercepts it and decides what to do. The `dashboard` package has no idea that `skilldetail` exists.
 
+**WindowSizeMsg forwarding**
+
+`tea.WindowSizeMsg` is only sent once at startup — when `screenDashboard` is the active screen. To ensure every screen model knows the terminal dimensions regardless of when it becomes active, the `WindowSizeMsg` case in `app.Update()` explicitly updates all persistent screen models:
+
+```go
+case tea.WindowSizeMsg:
+    m.width = msg.Width
+    m.height = msg.Height
+    if updated, _ := m.dashboard.Update(msg); updated != nil {
+        m.dashboard = updated.(dashboard.Model)
+    }
+    if updated, _ := m.materialsList.Update(msg); updated != nil {
+        m.materialsList = updated.(materials.Model)
+    }
+    // ... same for skillsList, progressList, categoriesList
+```
+
+Without this, any screen that was not active at startup would have `height == 0` and compute `visibleItems = 3` regardless of the actual terminal height.
+
 **Toast overlay**
 
 After `View()` renders the active screen to a string, if `m.toast != ""` it appends the toast below using `lipgloss.JoinVertical`. This is a clean way to layer UI: the active screen renders itself normally, and the root wraps it.
