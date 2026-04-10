@@ -411,7 +411,7 @@ func (m Model) View() string {
 					return common.TableSelectedStyle
 				default:
 					// Dim workout rows slightly vs learning rows using muted for type col.
-					return common.TableCellStyle
+					return common.DefaultNameStyle
 				}
 			})
 

@@ -56,7 +56,7 @@ func ApplyTheme() {
 		Padding(1, 2).
 		Width(60)
 	HelpStyle = lipgloss.NewStyle().Foreground(ColorMuted).MarginTop(1)
-	StatLabelStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	StatLabelStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
 	StatValueStyle = lipgloss.NewStyle().Bold(true)
 	CompletedNameStyle = lipgloss.NewStyle().Foreground(ColorPrimary).Strikethrough(true)
 	InactiveNameStyle = lipgloss.NewStyle().Foreground(ColorMuted).Italic(true)
@@ -65,7 +65,7 @@ func ApplyTheme() {
 	CompletedStatusStyle = lipgloss.NewStyle().Foreground(ColorPrimary)
 	SpinnerStyle = lipgloss.NewStyle().Foreground(ColorHighlight)
 	TableBorderStyle = lipgloss.NewStyle().Foreground(ColorBorder)
-	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorMuted).Bold(true)
+	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorSubtle).Bold(true)
 	TableSelectedStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
 	TableCellStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
 	titleRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
@@ -123,7 +123,7 @@ var (
 			MarginTop(1)
 
 	StatLabelStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+			Foreground(ColorSubtle)
 
 	StatValueStyle = lipgloss.NewStyle().
 			Bold(true)
@@ -156,7 +156,7 @@ var (
 	TableBorderStyle = lipgloss.NewStyle().Foreground(ColorBorder)
 
 	// TableHeaderStyle styles the header row in lipgloss/table renders.
-	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorMuted).Bold(true)
+	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorSubtle).Bold(true)
 
 	// TableSelectedStyle highlights the selected row in lipgloss/table renders.
 	TableSelectedStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)

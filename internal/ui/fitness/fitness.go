@@ -340,7 +340,7 @@ func (m Model) View() string {
 			case row == selectedIdx:
 				return common.TableSelectedStyle
 			default:
-				return common.TableCellStyle
+				return common.DefaultNameStyle
 			}
 		})
 	b.WriteString(t.Render())
