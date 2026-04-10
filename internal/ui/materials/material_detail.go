@@ -109,7 +109,7 @@ func (m DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !msg.Cancelled {
 				return m, tea.Batch(
 					loadMaterialDetail(m.client, m.materialID),
-					func() tea.Msg { return common.ProgressLoggedMsg{} },
+					func() tea.Msg { return common.LearningLoggedMsg{} },
 					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
 				)
 			}

@@ -368,3 +368,137 @@ type MaterialDetail struct {
 	Material     MaterialDetailInfo  `json:"material"`
 	ProgressLogs []MaterialDetailLog `json:"progressLogs"`
 }
+
+// --- workout / fitness ---
+
+// WorkoutType mirrors the Prisma WorkoutType enum.
+type WorkoutType string
+
+const (
+	WorkoutTypeLifting WorkoutType = "LIFTING"
+	WorkoutTypeRunning WorkoutType = "RUNNING"
+)
+
+// RunZone mirrors the Prisma RunZone enum.
+type RunZone string
+
+const (
+	RunZoneZ1   RunZone = "Z1"
+	RunZoneZ2   RunZone = "Z2"
+	RunZoneZ3   RunZone = "Z3"
+	RunZoneZ4   RunZone = "Z4"
+	RunZoneZ5   RunZone = "Z5"
+	RunZoneFree RunZone = "FREE"
+)
+
+// Exercise is a per-user lift exercise.
+type Exercise struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	IsArchived bool   `json:"isArchived"`
+	Priority   int    `json:"priority"`
+}
+
+// SessionLiftEntry is the raw lift entry returned by getSessions.
+type SessionLiftEntry struct {
+	Exercise struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"exercise"`
+	WeightLbs float64 `json:"weightLbs"`
+}
+
+// SessionRunSegment is a single segment within a run returned by getSessions.
+type SessionRunSegment struct {
+	Zone            string  `json:"zone"`
+	DistanceMiles   float64 `json:"distanceMiles"`
+	DurationSeconds int     `json:"durationSeconds"`
+}
+
+// SessionRunEntry is the run-specific data returned inline by getSessions.
+type SessionRunEntry struct {
+	Segments []SessionRunSegment `json:"segments"`
+}
+
+// WorkoutSession is a single workout session (lift or run).
+// LiftEntries and RunEntry are populated from the getSessions response and used
+// to format the Details string and to pre-populate the edit form.
+type WorkoutSession struct {
+	ID              string             `json:"id"`
+	Type            WorkoutType        `json:"type"`
+	Date            SuperJSONDate      `json:"date"`
+	DurationMinutes *int               `json:"durationMinutes"`
+	Notes           *string            `json:"notes"`
+	LiftEntries     []SessionLiftEntry `json:"liftEntries"`
+	RunEntry        *SessionRunEntry   `json:"runEntry"`
+	// Details is a pre-formatted summary string computed client-side.
+	// Not part of the JSON response — populated by the API client after parsing.
+	Details string `json:"-"`
+}
+
+// LiftRecord is one exercise+weight entry within a lifting session.
+type LiftRecord struct {
+	ExerciseID   string  `json:"exerciseId"`
+	ExerciseName string  `json:"exerciseName"`
+	WeightLbs    float64 `json:"weightLbs"`
+}
+
+// RunZonePace is the computed pace for a run zone.
+type RunZonePace struct {
+	Zone        RunZone `json:"zone"`
+	PaceSeconds int     `json:"paceSeconds"`
+}
+
+// RunEntryDetail is the run-specific data embedded in a WorkoutSessionDetail.
+type RunEntryDetail struct {
+	DistanceMiles   float64       `json:"distanceMiles"`
+	DurationSeconds int           `json:"durationSeconds"`
+	ZonePaces       []RunZonePace `json:"zonePaces"`
+}
+
+// WorkoutSessionDetail embeds WorkoutSession with lift/run specifics.
+type WorkoutSessionDetail struct {
+	WorkoutSession
+	LiftRecords []LiftRecord    `json:"liftRecords"`
+	RunEntry    *RunEntryDetail `json:"runEntry"`
+}
+
+// WorkoutGoal is one goal entry (lifting or running sessions per week).
+type WorkoutGoal struct {
+	Type            WorkoutType `json:"type"`
+	SessionsPerWeek int         `json:"sessionsPerWeek"`
+}
+
+// WorkoutStats holds the aggregated workout stats for the current week.
+type WorkoutStats struct {
+	LiftingThisWeek int `json:"thisWeekLiftSessions"`
+	RunningThisWeek int `json:"thisWeekRunSessions"`
+	LiftingGoal     int `json:"liftingGoal"`   // filled client-side from goals
+	RunningGoal     int `json:"runningGoal"`   // filled client-side from goals
+	LiftingStreak   int `json:"liftingStreak"` // not yet in API — reserved
+	RunningStreak   int `json:"runningStreak"` // not yet in API — reserved
+}
+
+// LiftProgressEntry is one data point in a per-exercise weight-over-time series.
+type LiftProgressEntry struct {
+	Date      SuperJSONDate `json:"date"`
+	WeightLbs float64       `json:"weightLbs"`
+}
+
+// LiftProgress is the weight-over-time series for one exercise.
+type LiftProgress struct {
+	ExerciseID   string              `json:"exerciseId"`
+	ExerciseName string              `json:"exerciseName"`
+	Entries      []LiftProgressEntry `json:"entries"`
+}
+
+// RunProgressEntry is one data point in the run distance/pace history.
+type RunProgressEntry struct {
+	Date            SuperJSONDate `json:"date"`
+	DistanceMiles   float64       `json:"distanceMiles"`
+	DurationSeconds int           `json:"durationSeconds"`
+	PaceSeconds     int           `json:"paceSecondsPerMile"`
+}
+
+// RunProgress is the run distance/pace history — the server returns a plain array.
+type RunProgress = []RunProgressEntry

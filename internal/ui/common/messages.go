@@ -20,8 +20,8 @@ type ErrMsg struct{ Err error }
 // MaterialChangedMsg is broadcast after any material is created, updated, or deleted.
 type MaterialChangedMsg struct{}
 
-// ProgressLoggedMsg is broadcast after a progress log entry is successfully created.
-type ProgressLoggedMsg struct{}
+// LearningLoggedMsg is broadcast after a learning log entry is successfully created.
+type LearningLoggedMsg struct{}
 
 // SkillChangedMsg is broadcast after any skill is created, updated, archived, unarchived, or deleted.
 type SkillChangedMsg struct{}
@@ -32,3 +32,9 @@ type CategoryChangedMsg struct{}
 // ThemeChangedMsg is sent by the settings screen after the user picks a new theme.
 // ThemeName is the name of the newly selected theme.
 type ThemeChangedMsg struct{ ThemeName string }
+
+// WorkoutLoggedMsg is broadcast after a workout session is successfully logged or deleted.
+type WorkoutLoggedMsg struct{}
+
+// ExerciseChangedMsg is broadcast after an exercise is created, updated, archived, or deleted.
+type ExerciseChangedMsg struct{}

@@ -21,7 +21,7 @@ type NavigateMsg string
 const (
 	ScreenMaterials  NavigateMsg = "materials"
 	ScreenSkills     NavigateMsg = "skills"
-	ScreenProgress   NavigateMsg = "progress"
+	ScreenActivity   NavigateMsg = "activity"
 	ScreenCategories NavigateMsg = "categories"
 )
 
@@ -32,6 +32,10 @@ type OpenMaterialMsg struct{ MaterialID string }
 
 type overviewLoadedMsg struct{ data *model.Overview }
 type activeMaterialsLoadedMsg struct{ data []model.ActiveMaterial }
+type workoutStatsLoadedMsg struct {
+	stats *model.WorkoutStats
+	goals []model.WorkoutGoal
+}
 
 // --- model ---
 
@@ -39,6 +43,8 @@ type Model struct {
 	client          *api.Client
 	overview        *model.Overview
 	activeMaterials []model.ActiveMaterial
+	workoutStats    *model.WorkoutStats
+	workoutGoals    []model.WorkoutGoal
 	cursor          int
 	loading         bool
 	err             error
@@ -68,6 +74,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		loadOverview(m.client),
 		loadActiveMaterials(m.client),
+		loadWorkoutStats(m.client),
 		m.spinner.Tick,
 	)
 }
@@ -92,6 +99,20 @@ func loadActiveMaterials(c *api.Client) tea.Cmd {
 	}
 }
 
+func loadWorkoutStats(c *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		stats, err := c.GetWorkoutStats()
+		if err != nil {
+			return common.ErrMsg{Err: err}
+		}
+		goals, err := c.GetWorkoutGoals()
+		if err != nil {
+			return common.ErrMsg{Err: err}
+		}
+		return workoutStatsLoadedMsg{stats, goals}
+	}
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Route to overlay when active.
 	if m.overlay != nil {
@@ -105,7 +126,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if done, ok := msg.(forms.LogDoneMsg); ok {
 			m.overlay = nil
 			if !done.Cancelled {
-				return m, func() tea.Msg { return common.ProgressLoggedMsg{} }
+				return m, func() tea.Msg { return common.LearningLoggedMsg{} }
 			}
 		}
 		return m, cmd
@@ -123,8 +144,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeMaterials = msg.data
 		m.loading = false
 
-	case common.MaterialChangedMsg, common.ProgressLoggedMsg:
+	case workoutStatsLoadedMsg:
+		m.workoutStats = msg.stats
+		m.workoutGoals = msg.goals
+
+	case common.MaterialChangedMsg, common.LearningLoggedMsg:
 		return m, tea.Batch(loadOverview(m.client), loadActiveMaterials(m.client))
+
+	case common.WorkoutLoggedMsg:
+		return m, loadWorkoutStats(m.client)
 
 	case common.ErrMsg:
 		m.err = msg.Err
@@ -142,7 +170,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			m.loading = true
 			m.err = nil
-			return m, tea.Batch(loadOverview(m.client), loadActiveMaterials(m.client))
+			return m, tea.Batch(loadOverview(m.client), loadActiveMaterials(m.client), loadWorkoutStats(m.client))
 		case "j", "down":
 			if m.cursor < len(m.activeMaterials)-1 {
 				m.cursor++
@@ -188,6 +216,12 @@ func (m Model) View() string {
 		b.WriteString("\n")
 	}
 
+	// Workout KPI row
+	if m.workoutStats != nil {
+		b.WriteString(m.renderWorkoutKPIs())
+		b.WriteString("\n")
+	}
+
 	// Active materials list
 	b.WriteString(common.SectionStyle.Render("Active Materials"))
 	b.WriteString("\n")
@@ -195,8 +229,12 @@ func (m Model) View() string {
 	if len(m.activeMaterials) == 0 {
 		b.WriteString(common.MutedStyle.Render("  No active materials.\n"))
 	} else {
-		// RenderTitle=3 + blank=1 + KPIs=3 + blank=1 + Section=2 + blank=1 + help=2 = 13 overhead; tab bar=3 → 16; each item is 4 lines
-		visibleItems := (m.height - 16) / 4
+		// RenderTitle=3 + blank=1 + KPIs=3 + blank=1 + WorkoutKPIs=3 + blank=1 + Section=2 + blank=1 + help=2 = 17 overhead; tab bar=3 → 20; each item is 4 lines
+		workoutOverhead := 0
+		if m.workoutStats != nil {
+			workoutOverhead = 4 // KPI row=3 + blank=1
+		}
+		visibleItems := (m.height - 16 - workoutOverhead) / 4
 		if visibleItems < 2 {
 			visibleItems = 2
 		}
@@ -234,6 +272,33 @@ func (m Model) renderKPIs() string {
 		common.StatCard("Completed", fmt.Sprintf("%d", o.CompletedCount)),
 		common.StatCard("Progress", fmt.Sprintf("%.0f%%", o.CompletionPct)),
 		common.StatCard("Streak", streak),
+	}
+	return common.RenderKPICards(cards)
+}
+
+func (m Model) renderWorkoutKPIs() string {
+	s := m.workoutStats
+	liftGoal, runGoal := 0, 0
+	for _, g := range m.workoutGoals {
+		if g.Type == model.WorkoutTypeLifting {
+			liftGoal = g.SessionsPerWeek
+		} else if g.Type == model.WorkoutTypeRunning {
+			runGoal = g.SessionsPerWeek
+		}
+	}
+
+	liftLabel := fmt.Sprintf("%d", s.LiftingThisWeek)
+	if liftGoal > 0 {
+		liftLabel = fmt.Sprintf("%d/%d", s.LiftingThisWeek, liftGoal)
+	}
+	runLabel := fmt.Sprintf("%d", s.RunningThisWeek)
+	if runGoal > 0 {
+		runLabel = fmt.Sprintf("%d/%d", s.RunningThisWeek, runGoal)
+	}
+
+	cards := []string{
+		common.StatCard("Lifting/wk", liftLabel),
+		common.StatCard("Running/wk", runLabel),
 	}
 	return common.RenderKPICards(cards)
 }

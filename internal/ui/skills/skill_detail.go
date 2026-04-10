@@ -81,7 +81,7 @@ func (m DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !done.Cancelled {
 				return m, tea.Batch(
 					loadSkillDetail(m.client, m.skillID),
-					func() tea.Msg { return common.ProgressLoggedMsg{} },
+					func() tea.Msg { return common.LearningLoggedMsg{} },
 					func() tea.Msg { return common.ToastMsg{Text: "Progress logged!"} },
 				)
 			}

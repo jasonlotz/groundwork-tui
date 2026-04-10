@@ -63,36 +63,45 @@ internal/
       app.go             — root model; owns navigation stack + all screen models
     common/
       styles.go          — all Lip Gloss styles + shared helpers (RenderTitle, RenderBar, etc.)
-      messages.go        — cross-cutting message types: GoBackMsg, ToastMsg, ErrMsg, MaterialChangedMsg, etc.
+      messages.go        — cross-cutting message types: GoBackMsg, ToastMsg, ErrMsg, MaterialChangedMsg, LearningLoggedMsg, WorkoutLoggedMsg, ExerciseChangedMsg, etc.
       tailwind.go        — maps Tailwind color class strings to terminal hex colors
       spinner.go         — pre-configured spinner
       help.go            — pre-configured help bar
       keys.go            — key binding helpers
-      tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen
+      tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen; tabs: d=Dashboard c=Categories s=Skills m=Materials a=Activity t=Settings f=Fitness
     forms/
       category_form.go   — CategoryForm, CategoryFormDoneMsg, NewCategoryCreateForm, NewCategoryEditForm
       skill_form.go      — SkillForm, SkillFormDoneMsg, NewSkillCreateFormWithCategories, NewSkillEditForm
       material_form.go   — MaterialForm, MaterialFormDoneMsg, MaterialFormResult, NewMaterialCreateForm, NewMaterialEditForm
       confirm_form.go    — ConfirmForm, ConfirmDoneMsg, NewConfirmForm
       log_form.go        — LogForm, LogDoneMsg, NewLogForm
+      log_workout_form.go — LogWorkoutForm, WorkoutLogDoneMsg, NewLogWorkoutForm(client)
       colors.go          — shared colorOptions + ActiveTheme var + updateHuhForm helper
     setup/
       setup.go           — first-run wizard (Huh form for base URL + API key)
     theme/
       theme.go           — Theme struct, All slice (11 themes), Active pointer, SetActive()
     settings/
-      settings.go        — theme-picker screen (press t); emits ThemeChangedMsg on selection
-    dashboard/           — home screen: KPI cards + active materials list
+      settings.go        — settings screen (press t): theme picker + exercise management (add/rename/archive/delete); accepts *api.Client; emits ThemeChangedMsg/ExerciseChangedMsg
+    dashboard/           — home screen: learning KPI cards + workout KPI cards (lifting/wk, running/wk) + active materials list
     materials/
       materials.go       — materials list + create/edit/delete/log overlays
       material_detail.go — DetailModel, NewDetail(): single material KPI + progress log
     skills/
       skills.go          — skills list
       skill_detail.go    — DetailModel, NewDetail(): single skill KPI + materials table
-    progress/            — progress log list
+    activity/
+      activity.go        — activity log list (learning log history; was progress/)
     categories/
       categories.go      — categories list
       category_detail.go — DetailModel, NewDetail(): single category skills list
+    fitness/
+      fitness.go         — root Fitness model; owns three sub-tabs (Overview/Lifting/Running); L=log workout, D=delete session
+      overview.go        — Overview sub-tab: workout KPI cards (lifting/wk, running/wk, total/wk with goals) + recent sessions table; j/k to navigate
+      lifting.go         — Lifting sub-tab: lifting session history table
+      running.go         — Running sub-tab: running session history table + latest run stats (distance, time, pace)
+    forms/
+      log_workout_form.go — LogWorkoutForm: two-step huh form (type select → lift details or run distance/time/zone); emits WorkoutLogDoneMsg
 ```
 
 ---
@@ -133,7 +142,9 @@ Recount from the `View()` source every time you change layout; do not guess.
 
 Screens store an `overlay tea.Model` field. When non-nil, `Update` routes all messages through the overlay and `View` renders it centered via `lipgloss.Place`. Done messages (`forms.LogDoneMsg`, `forms.CategoryFormDoneMsg`, `forms.ConfirmDoneMsg`, etc.) clear the overlay and trigger a data reload. All form and done-message types live in `internal/ui/forms/` — never in `common`.
 
-Every screen that can have an overlay must implement `HasOverlay() bool { return m.overlay != nil }`. The root `app.go` collects these via `inputActive()` to suppress global tab-switch hotkeys (`d/c/s/m/p/t`) while a form is open. If you add a new screen with an overlay, add its `HasOverlay()` check to `inputActive()` in `app.go`.
+Every screen that can have an overlay must implement `HasOverlay() bool { return m.overlay != nil }`. The root `app.go` collects these via `inputActive()` to suppress global tab-switch hotkeys (`d/c/s/m/a/t/f`) while a form is open. If you add a new screen with an overlay, add its `HasOverlay()` check to `inputActive()` in `app.go`.
+
+The `settings` screen uses an `action exerciseAction` field instead of `overlay tea.Model` (because it has two different form types), but it still implements `HasOverlay() bool { return m.action != actionNone }` and is included in `inputActive()`.
 
 ### Styles
 

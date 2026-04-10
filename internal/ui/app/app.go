@@ -7,11 +7,12 @@ import (
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
 	"github.com/jasonlotz/groundwork-tui/internal/config"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/activity"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/categories"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/dashboard"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/fitness"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/materials"
-	"github.com/jasonlotz/groundwork-tui/internal/ui/progress"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/settings"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/skills"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/theme"
@@ -24,7 +25,8 @@ const (
 	screenCategories
 	screenSkills
 	screenMaterials
-	screenProgress
+	screenFitness
+	screenActivity
 	screenSettings
 	screenCategoryDetail
 	screenSkillDetail
@@ -50,9 +52,10 @@ type Model struct {
 	dashboard      dashboard.Model
 	materialsList  materials.Model
 	skillsList     skills.Model
-	progressList   progress.Model
+	activityList   activity.Model
 	categoriesList categories.Model
 	settingsScreen settings.Model
+	fitnessList    fitness.Model
 	categoryDetail *categories.DetailModel
 	skillDetail    *skills.DetailModel
 	materialDetail *materials.DetailModel
@@ -71,9 +74,10 @@ func New(client *api.Client, cfg *config.Config) Model {
 		dashboard:      dashboard.New(client),
 		materialsList:  materials.New(client),
 		skillsList:     skills.New(client),
-		progressList:   progress.New(client),
+		activityList:   activity.New(client),
 		categoriesList: categories.New(client),
-		settingsScreen: settings.New(),
+		settingsScreen: settings.New(client),
+		fitnessList:    fitness.New(client),
 	}
 }
 
@@ -88,8 +92,11 @@ func (m Model) inputActive() bool {
 	if m.materialsList.Searching() || m.materialsList.HasOverlay() {
 		return true
 	}
-	if m.skillsList.HasOverlay() || m.progressList.HasOverlay() ||
+	if m.skillsList.HasOverlay() || m.activityList.HasOverlay() ||
 		m.categoriesList.HasOverlay() {
+		return true
+	}
+	if m.fitnessList.HasOverlay() || m.settingsScreen.HasOverlay() {
 		return true
 	}
 	if m.categoryDetail != nil && m.categoryDetail.HasOverlay() {
@@ -157,13 +164,15 @@ func (m *Model) switchTab(s screen) (tea.Model, tea.Cmd) {
 		return m, m.materialsList.Init()
 	case screenSkills:
 		return m, m.skillsList.Init()
-	case screenProgress:
-		return m, m.progressList.Init()
+	case screenActivity:
+		return m, m.activityList.Init()
 	case screenCategories:
 		return m, m.categoriesList.Init()
 	case screenSettings:
-		m.settingsScreen = settings.New()
+		m.settingsScreen = settings.New(m.client)
 		return m, m.settingsScreen.Init()
+	case screenFitness:
+		return m, m.fitnessList.Init()
 	}
 	return m, nil
 }
@@ -184,14 +193,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if updated, _ := m.skillsList.Update(msg); updated != nil {
 			m.skillsList = updated.(skills.Model)
 		}
-		if updated, _ := m.progressList.Update(msg); updated != nil {
-			m.progressList = updated.(progress.Model)
+		if updated, _ := m.activityList.Update(msg); updated != nil {
+			m.activityList = updated.(activity.Model)
 		}
 		if updated, _ := m.categoriesList.Update(msg); updated != nil {
 			m.categoriesList = updated.(categories.Model)
 		}
 		if updated, _ := m.settingsScreen.Update(msg); updated != nil {
 			m.settingsScreen = updated.(settings.Model)
+		}
+		if updated, _ := m.fitnessList.Update(msg); updated != nil {
+			m.fitnessList = updated.(fitness.Model)
 		}
 
 	case common.ToastMsg:
@@ -208,7 +220,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				_ = config.Save(m.cfg)
 			}
 			// Refresh the settings cursor to reflect new active theme.
-			m.settingsScreen = settings.New()
+			m.settingsScreen = settings.New(m.client)
 			m.toast = "Theme changed to " + msg.ThemeName
 		}
 		return m, nil
@@ -219,7 +231,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	// --- domain events: fan out to all persistent screens ---
-	case common.MaterialChangedMsg, common.ProgressLoggedMsg, common.SkillChangedMsg, common.CategoryChangedMsg:
+	case common.MaterialChangedMsg, common.LearningLoggedMsg, common.SkillChangedMsg, common.CategoryChangedMsg:
 		var cmds []tea.Cmd
 		if updated, cmd := m.dashboard.Update(msg); updated != nil {
 			m.dashboard = updated.(dashboard.Model)
@@ -233,12 +245,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.skillsList = updated.(skills.Model)
 			cmds = append(cmds, cmd)
 		}
-		if updated, cmd := m.progressList.Update(msg); updated != nil {
-			m.progressList = updated.(progress.Model)
+		if updated, cmd := m.activityList.Update(msg); updated != nil {
+			m.activityList = updated.(activity.Model)
 			cmds = append(cmds, cmd)
 		}
 		if updated, cmd := m.categoriesList.Update(msg); updated != nil {
 			m.categoriesList = updated.(categories.Model)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+
+	case common.WorkoutLoggedMsg:
+		var cmds []tea.Cmd
+		if updated, cmd := m.dashboard.Update(msg); updated != nil {
+			m.dashboard = updated.(dashboard.Model)
+			cmds = append(cmds, cmd)
+		}
+		if updated, cmd := m.fitnessList.Update(msg); updated != nil {
+			m.fitnessList = updated.(fitness.Model)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+
+	case common.ExerciseChangedMsg:
+		var cmds []tea.Cmd
+		if updated, cmd := m.fitnessList.Update(msg); updated != nil {
+			m.fitnessList = updated.(fitness.Model)
+			cmds = append(cmds, cmd)
+		}
+		if updated, cmd := m.settingsScreen.Update(msg); updated != nil {
+			m.settingsScreen = updated.(settings.Model)
 			cmds = append(cmds, cmd)
 		}
 		return m, tea.Batch(cmds...)
@@ -299,12 +335,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.switchTab(screenMaterials)
 		case "s":
 			return m.switchTab(screenSkills)
-		case "p":
-			return m.switchTab(screenProgress)
+		case "a":
+			return m.switchTab(screenActivity)
 		case "c":
 			return m.switchTab(screenCategories)
 		case "t":
 			return m.switchTab(screenSettings)
+		case "f":
+			return m.switchTab(screenFitness)
 		}
 	}
 
@@ -330,9 +368,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.skillsList = updated.(skills.Model)
 		return m, cmd
 
-	case screenProgress:
-		updated, cmd := m.progressList.Update(msg)
-		m.progressList = updated.(progress.Model)
+	case screenActivity:
+		updated, cmd := m.activityList.Update(msg)
+		m.activityList = updated.(activity.Model)
 		return m, cmd
 
 	case screenCategories:
@@ -343,6 +381,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenSettings:
 		updated, cmd := m.settingsScreen.Update(msg)
 		m.settingsScreen = updated.(settings.Model)
+		return m, cmd
+
+	case screenFitness:
+		updated, cmd := m.fitnessList.Update(msg)
+		m.fitnessList = updated.(fitness.Model)
 		return m, cmd
 
 	case screenCategoryDetail:
@@ -382,8 +425,8 @@ func (m Model) handleDashboardNav(nav dashboard.NavigateMsg) (tea.Model, tea.Cmd
 		return m.switchTab(screenMaterials)
 	case dashboard.ScreenSkills:
 		return m.switchTab(screenSkills)
-	case dashboard.ScreenProgress:
-		return m.switchTab(screenProgress)
+	case dashboard.ScreenActivity:
+		return m.switchTab(screenActivity)
 	case dashboard.ScreenCategories:
 		return m.switchTab(screenCategories)
 	}
@@ -400,12 +443,14 @@ func (m Model) View() string {
 		content = m.materialsList.View()
 	case screenSkills:
 		content = m.skillsList.View()
-	case screenProgress:
-		content = m.progressList.View()
+	case screenActivity:
+		content = m.activityList.View()
 	case screenCategories:
 		content = m.categoriesList.View()
 	case screenSettings:
 		content = m.settingsScreen.View()
+	case screenFitness:
+		content = m.fitnessList.View()
 	case screenCategoryDetail:
 		if m.categoryDetail != nil {
 			content = m.categoryDetail.View()

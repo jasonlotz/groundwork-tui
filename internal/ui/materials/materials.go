@@ -121,7 +121,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case forms.LogDoneMsg:
 			m.overlay = nil
 			if !msg.Cancelled {
-				return m, func() tea.Msg { return common.ProgressLoggedMsg{} }
+				return m, func() tea.Msg { return common.LearningLoggedMsg{} }
 			}
 			return m, nil
 
@@ -455,8 +455,6 @@ func (m Model) renderRow(i int) string {
 		nameStyle = common.SelectedStyle
 	case mat.Status == model.StatusComplete:
 		nameStyle = common.CompletedNameStyle
-	case mat.Status == model.StatusInactive:
-		nameStyle = common.InactiveNameStyle
 	}
 
 	// Progress
