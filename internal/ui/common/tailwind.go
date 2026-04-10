@@ -66,25 +66,25 @@ func extractBgClass(class string) string {
 
 // TailwindToLipgloss converts a Tailwind CSS background class (e.g. "bg-violet-300"),
 // or a multi-class string as stored by the web app, to a lipgloss.Color.
-// Returns (color, true) if recognised; (ColorSubtle, false) otherwise.
+// Returns (color, true) if recognised; (ColorMuted, false) otherwise.
 func TailwindToLipgloss(class string) (lipgloss.Color, bool) {
 	key := extractBgClass(class)
 	if hex, ok := tailwindToHex[key]; ok {
 		return lipgloss.Color(hex), true
 	}
-	return ColorSubtle, false
+	return ColorMuted, false
 }
 
 // ColorDot renders a small colored "●" dot using the given Tailwind class.
-// Returns a plain muted dot if the class is empty or unrecognised.
+// Returns a plain dim dot if the class is empty or unrecognised.
 func ColorDot(tailwindClass string) string {
 	if tailwindClass == "" {
-		return MutedStyle.Render("●")
+		return DimStyle.Render("●")
 	}
 	if color, ok := TailwindToLipgloss(tailwindClass); ok {
 		return lipgloss.NewStyle().Foreground(color).Render("●")
 	}
-	return MutedStyle.Render("●")
+	return DimStyle.Render("●")
 }
 
 // ColoredName renders text in the color matching the given Tailwind class.

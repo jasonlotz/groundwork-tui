@@ -148,7 +148,7 @@ The `settings` screen uses an `action exerciseAction` field instead of `overlay 
 
 ### Styles
 
-All Lip Gloss styles are declared as package-level vars in `common/styles.go`. Do not create inline styles in screen files (minor exception: dynamically computed colors like pace-based progress bar colors). Use `common.MutedStyle.Render(text)`, `common.SuccessStyle.Render(text)`, etc.
+All Lip Gloss styles are declared as package-level vars in `common/styles.go`. Do not create inline styles in screen files (minor exception: dynamically computed colors like pace-based progress bar colors). Use `common.DimStyle.Render(text)` for de-emphasized/secondary text, `common.SuccessStyle.Render(text)`, etc. Note: `common.TableHeaderStyle`, `common.StatLabelStyle`, and similar use `ColorMuted` (lighter secondary text), while `common.DimStyle` uses `ColorDim` (darker, more de-emphasized).
 
 ### API client
 

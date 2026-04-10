@@ -316,14 +316,14 @@ func (m DetailModel) View() string {
 		}
 		return ""
 	}())
-	crumb := catDot + " " + common.MutedStyle.Render(mat.Skill.Category.Name+" › ") +
-		skillDot + " " + common.MutedStyle.Render(mat.Skill.Name+" › ")
+	crumb := catDot + " " + common.DimStyle.Render(mat.Skill.Category.Name+" › ") +
+		skillDot + " " + common.DimStyle.Render(mat.Skill.Name+" › ")
 	b.WriteString(common.RenderTitle(crumb+mat.Name, m.width))
 	b.WriteString("\n")
 
 	// KPI row
 	statusStr := strings.ToLower(string(mat.Status))
-	statusStyle := common.MutedStyle
+	statusStyle := common.DimStyle
 	switch mat.Status {
 	case model.StatusActive:
 		statusStyle = common.SuccessStyle
@@ -352,9 +352,9 @@ func (m DetailModel) View() string {
 		weeklyLabel := fmt.Sprintf("%.4g / %d %s this week",
 			mat.UnitsThisWeek, *mat.WeeklyUnitGoal, mat.UnitType.Label())
 		if mat.ProjectedEndDate != nil {
-			weeklyLabel += common.MutedStyle.Render("  · est. " + common.FormatProjectedDate(*mat.ProjectedEndDate))
+			weeklyLabel += common.DimStyle.Render("  · est. " + common.FormatProjectedDate(*mat.ProjectedEndDate))
 		}
-		b.WriteString("  " + weeklyBar + "  " + common.MutedStyle.Render(weeklyLabel) + "\n")
+		b.WriteString("  " + weeklyBar + "  " + common.DimStyle.Render(weeklyLabel) + "\n")
 	}
 
 	// Overall progress bar.
@@ -364,27 +364,27 @@ func (m DetailModel) View() string {
 	}
 	overallLabel := fmt.Sprintf("%.4g / %.4g %s overall",
 		mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label())
-	b.WriteString("  " + common.RenderOverallBar(barWidth, pct) + "  " + common.MutedStyle.Render(overallLabel) + "\n")
+	b.WriteString("  " + common.RenderOverallBar(barWidth, pct) + "  " + common.DimStyle.Render(overallLabel) + "\n")
 
 	// Meta info
 	metaLines := []string{}
-	metaLines = append(metaLines, fmt.Sprintf("  Type: %s", common.MutedStyle.Render(mat.MaterialType.Name)))
+	metaLines = append(metaLines, fmt.Sprintf("  Type: %s", common.DimStyle.Render(mat.MaterialType.Name)))
 	if mat.WeeklyUnitGoal != nil && *mat.WeeklyUnitGoal > 0 {
-		metaLines = append(metaLines, fmt.Sprintf("  Goal: %s", common.MutedStyle.Render(fmt.Sprintf("%d %s/week", *mat.WeeklyUnitGoal, mat.UnitType.Label()))))
+		metaLines = append(metaLines, fmt.Sprintf("  Goal: %s", common.DimStyle.Render(fmt.Sprintf("%d %s/week", *mat.WeeklyUnitGoal, mat.UnitType.Label()))))
 	}
 	if mat.ProjectedEndDate != nil {
-		metaLines = append(metaLines, fmt.Sprintf("  Est. completion: %s", common.MutedStyle.Render(common.FormatProjectedDate(*mat.ProjectedEndDate))))
+		metaLines = append(metaLines, fmt.Sprintf("  Est. completion: %s", common.DimStyle.Render(common.FormatProjectedDate(*mat.ProjectedEndDate))))
 	}
 	if mat.StartDate != nil && mat.StartDate.Value != "" {
-		metaLines = append(metaLines, fmt.Sprintf("  Started: %s", common.MutedStyle.Render(mat.StartDate.Value)))
+		metaLines = append(metaLines, fmt.Sprintf("  Started: %s", common.DimStyle.Render(mat.StartDate.Value)))
 	}
 	if mat.CompletedDate != nil && mat.CompletedDate.Value != "" {
-		metaLines = append(metaLines, fmt.Sprintf("  Completed: %s", common.MutedStyle.Render(mat.CompletedDate.Value)))
+		metaLines = append(metaLines, fmt.Sprintf("  Completed: %s", common.DimStyle.Render(mat.CompletedDate.Value)))
 	}
 	if mat.URL != nil && *mat.URL != "" {
 		label := common.Truncate(*mat.URL, 50)
 		link := termenv.Hyperlink(*mat.URL, label)
-		metaLines = append(metaLines, fmt.Sprintf("  URL: %s", common.MutedStyle.Render(link)))
+		metaLines = append(metaLines, fmt.Sprintf("  URL: %s", common.DimStyle.Render(link)))
 	}
 	for _, line := range metaLines {
 		b.WriteString(line + "\n")
@@ -439,7 +439,7 @@ func (m DetailModel) View() string {
 		b.WriteString("\n")
 
 		if len(m.data.ProgressLogs) > visibleHeight {
-			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+			b.WriteString(common.DimStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d entries\n", start+1, end, len(m.data.ProgressLogs),
 			)))
 		}

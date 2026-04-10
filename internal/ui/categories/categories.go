@@ -314,16 +314,16 @@ func (m Model) View() string {
 	var b strings.Builder
 	tag := ""
 	if m.showArchived {
-		tag = common.MutedStyle.Render("[showing archived]")
+		tag = common.DimStyle.Render("[showing archived]")
 	}
 	b.WriteString(common.RenderTitleWithTag("Categories", tag, m.width))
 	b.WriteString("\n")
 
 	if len(m.filtered) == 0 {
 		if m.showArchived {
-			b.WriteString(common.MutedStyle.Render("  No categories found.\n"))
+			b.WriteString(common.DimStyle.Render("  No categories found.\n"))
 		} else {
-			b.WriteString(common.MutedStyle.Render("  No categories found.\n"))
+			b.WriteString(common.DimStyle.Render("  No categories found.\n"))
 		}
 	} else {
 		// RenderTitle=3 + blank=1 + table-header=1 + table-sep=1 + blank=1 + help=2 = 9 overhead; tab bar=3 → 12 (data rows only)
@@ -359,7 +359,7 @@ func (m Model) View() string {
 		b.WriteString("\n")
 
 		if len(m.filtered) > visibleHeight {
-			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+			b.WriteString(common.DimStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d\n", start+1, end, len(m.filtered),
 			)))
 		}

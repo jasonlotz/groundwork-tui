@@ -56,20 +56,20 @@ var (
 		PaddingLeft(1).
 		PaddingRight(1)
 
-	// Inactive tab: flat, muted — no border.
+	// Inactive tab: flat, dim — no border.
 	tabInactiveStyle = lipgloss.NewStyle().
-				Foreground(ColorMuted).
+				Foreground(ColorDim).
 				PaddingLeft(1).
 				PaddingRight(1).
 				MarginTop(1) // push down 1 line so tops align with active tab border
 
 	// Underlined key letter styles.
 	tabKeyActiveStyle   = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Underline(true)
-	tabKeyInactiveStyle = lipgloss.NewStyle().Foreground(ColorSubtle).Underline(true)
+	tabKeyInactiveStyle = lipgloss.NewStyle().Foreground(ColorMuted).Underline(true)
 
 	// Suffix text styles.
 	tabSuffixActiveStyle   = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
-	tabSuffixInactiveStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	tabSuffixInactiveStyle = lipgloss.NewStyle().Foreground(ColorDim)
 
 	tabRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
 )
@@ -97,14 +97,14 @@ func rebuildTabStyles() {
 		PaddingLeft(1).
 		PaddingRight(1)
 	tabInactiveStyle = lipgloss.NewStyle().
-		Foreground(ColorMuted).
+		Foreground(ColorDim).
 		PaddingLeft(1).
 		PaddingRight(1).
 		MarginTop(1)
 	tabKeyActiveStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Underline(true)
-	tabKeyInactiveStyle = lipgloss.NewStyle().Foreground(ColorSubtle).Underline(true)
+	tabKeyInactiveStyle = lipgloss.NewStyle().Foreground(ColorMuted).Underline(true)
 	tabSuffixActiveStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
-	tabSuffixInactiveStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	tabSuffixInactiveStyle = lipgloss.NewStyle().Foreground(ColorDim)
 	tabRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
 }
 

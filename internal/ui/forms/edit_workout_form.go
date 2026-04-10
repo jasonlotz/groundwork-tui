@@ -268,7 +268,7 @@ func (f *EditWorkoutForm) View() string {
 			b.WriteString(f.runEditor.view(popupW))
 		}
 		b.WriteString("\n")
-		b.WriteString(common.MutedStyle.Render(
+		b.WriteString(common.DimStyle.Render(
 			"  enter/space: cycle  tab: next col  j/k: rows  a: add  D: delete  n: continue  esc: cancel",
 		))
 		return lipgloss.NewStyle().

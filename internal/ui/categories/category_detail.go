@@ -349,12 +349,12 @@ func (m DetailModel) View() string {
 				pct = mat.CompletedUnits / mat.TotalUnits
 			}
 			bar := common.RenderOverallBar(16, pct)
-			skillLabel := common.MutedStyle.Render(common.Truncate(mat.SkillName, 16))
+			skillLabel := common.DimStyle.Render(common.Truncate(mat.SkillName, 16))
 			name := common.Truncate(mat.Name, 28)
-			b.WriteString(fmt.Sprintf("  %s  %s  %s\n", bar, common.MutedStyle.Render(name), skillLabel))
+			b.WriteString(fmt.Sprintf("  %s  %s  %s\n", bar, common.DimStyle.Render(name), skillLabel))
 		}
 		if len(d.ActiveMaterials) > limit {
-			b.WriteString(common.MutedStyle.Render(fmt.Sprintf("  … and %d more\n", len(d.ActiveMaterials)-limit)))
+			b.WriteString(common.DimStyle.Render(fmt.Sprintf("  … and %d more\n", len(d.ActiveMaterials)-limit)))
 		}
 	}
 
@@ -363,7 +363,7 @@ func (m DetailModel) View() string {
 	b.WriteString("\n")
 
 	if len(d.SkillsSummary) == 0 {
-		b.WriteString(common.MutedStyle.Render("  No skills.\n"))
+		b.WriteString(common.DimStyle.Render("  No skills.\n"))
 	} else {
 		// Reserve: title(2) + kpis(3) + active header+rows(~7) + skills header(2) + table header(1) + separator(1) + help(2); tab bar=3
 		usedLines := 21
@@ -402,7 +402,7 @@ func (m DetailModel) View() string {
 		b.WriteString("\n")
 
 		if len(d.SkillsSummary) > visibleHeight {
-			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+			b.WriteString(common.DimStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d skills\n", start+1, end, len(d.SkillsSummary),
 			)))
 		}

@@ -9,14 +9,20 @@ import (
 )
 
 // Palette holds the lipgloss colors used throughout the app.
+//
+// Dim is the darker/more-faded color — used for archived names, help text,
+// inactive tabs, and other truly de-emphasized UI elements.
+//
+// Muted is the lighter secondary-text color — used for table headers, stat
+// labels, subtitles, and other readable-but-not-primary UI elements.
 type Palette struct {
 	Primary   lipgloss.Color
-	Muted     lipgloss.Color
+	Dim       lipgloss.Color
 	Success   lipgloss.Color
 	Warning   lipgloss.Color
 	Danger    lipgloss.Color
 	Border    lipgloss.Color
-	Subtle    lipgloss.Color
+	Muted     lipgloss.Color
 	Highlight lipgloss.Color
 }
 
@@ -62,12 +68,12 @@ var Dracula = AppTheme{
 	HuhTheme: huh.ThemeDracula(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("#bd93f9"), // dracula purple
-		Muted:     lipgloss.Color("#6272a4"), // dracula comment
+		Dim:       lipgloss.Color("#6272a4"), // dracula comment (darker)
 		Success:   lipgloss.Color("#50fa7b"), // dracula green
 		Warning:   lipgloss.Color("#f1fa8c"), // dracula yellow
 		Danger:    lipgloss.Color("#ff5555"), // dracula red
 		Border:    lipgloss.Color("#44475a"), // dracula current line
-		Subtle:    lipgloss.Color("#6272a4"), // dracula comment
+		Muted:     lipgloss.Color("#8892bf"), // dracula comment lightened (secondary text)
 		Highlight: lipgloss.Color("#ff79c6"), // dracula pink
 	},
 }
@@ -78,12 +84,12 @@ var Charm = AppTheme{
 	HuhTheme: huh.ThemeCharm(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("#5A56E0"), // charm indigo
-		Muted:     lipgloss.Color("#6B7280"), // gray-500
+		Dim:       lipgloss.Color("#6B7280"), // gray-500 (darker, de-emphasized)
 		Success:   lipgloss.Color("#02BA84"), // charm green
 		Warning:   lipgloss.Color("#D97706"), // amber-600
 		Danger:    lipgloss.Color("#ff0055"), // bright red
 		Border:    lipgloss.Color("#383838"), // dark gray
-		Subtle:    lipgloss.Color("#9CA3AF"), // gray-400
+		Muted:     lipgloss.Color("#9CA3AF"), // gray-400 (lighter, secondary text)
 		Highlight: lipgloss.Color("#7571F9"), // charm lavender
 	},
 }
@@ -94,12 +100,12 @@ var Catppuccin = AppTheme{
 	HuhTheme: huh.ThemeCatppuccin(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("#cba6f7"), // mocha mauve
-		Muted:     lipgloss.Color("#6c7086"), // mocha overlay0
+		Dim:       lipgloss.Color("#6c7086"), // mocha overlay0 (darker, de-emphasized)
 		Success:   lipgloss.Color("#a6e3a1"), // mocha green
 		Warning:   lipgloss.Color("#f9e2af"), // mocha yellow
 		Danger:    lipgloss.Color("#f38ba8"), // mocha red
 		Border:    lipgloss.Color("#45475a"), // mocha surface1
-		Subtle:    lipgloss.Color("#9399b2"), // mocha overlay2
+		Muted:     lipgloss.Color("#9399b2"), // mocha overlay2 (lighter, secondary text)
 		Highlight: lipgloss.Color("#f5c2e7"), // mocha pink
 	},
 }
@@ -110,12 +116,12 @@ var Base = AppTheme{
 	HuhTheme: huh.ThemeBase(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("4"),  // ANSI blue
-		Muted:     lipgloss.Color("8"),  // ANSI bright black (dark gray)
+		Dim:       lipgloss.Color("8"),  // ANSI bright black (dark gray, de-emphasized)
 		Success:   lipgloss.Color("2"),  // ANSI green
 		Warning:   lipgloss.Color("3"),  // ANSI yellow
 		Danger:    lipgloss.Color("1"),  // ANSI red
 		Border:    lipgloss.Color("0"),  // ANSI black
-		Subtle:    lipgloss.Color("7"),  // ANSI white
+		Muted:     lipgloss.Color("7"),  // ANSI white (secondary text)
 		Highlight: lipgloss.Color("12"), // ANSI bright blue
 	},
 }
@@ -126,12 +132,12 @@ var Base16 = AppTheme{
 	HuhTheme: huh.ThemeBase16(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("6"),  // ANSI cyan
-		Muted:     lipgloss.Color("8"),  // ANSI bright black
+		Dim:       lipgloss.Color("8"),  // ANSI bright black (de-emphasized)
 		Success:   lipgloss.Color("2"),  // ANSI green
 		Warning:   lipgloss.Color("3"),  // ANSI yellow
 		Danger:    lipgloss.Color("9"),  // ANSI bright red
 		Border:    lipgloss.Color("0"),  // ANSI black
-		Subtle:    lipgloss.Color("7"),  // ANSI white
+		Muted:     lipgloss.Color("7"),  // ANSI white (secondary text)
 		Highlight: lipgloss.Color("14"), // ANSI bright cyan
 	},
 }
@@ -142,12 +148,12 @@ var TokyoNight = AppTheme{
 	HuhTheme: tokyoNightHuh(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("#7aa2f7"), // blue
-		Muted:     lipgloss.Color("#565f89"), // comment
+		Dim:       lipgloss.Color("#414868"), // overlay (darker, de-emphasized)
 		Success:   lipgloss.Color("#9ece6a"), // green
 		Warning:   lipgloss.Color("#e0af68"), // yellow
 		Danger:    lipgloss.Color("#f7768e"), // red
 		Border:    lipgloss.Color("#3b4261"), // surface
-		Subtle:    lipgloss.Color("#414868"), // overlay
+		Muted:     lipgloss.Color("#9aa5ce"), // comment2 (lighter, secondary text)
 		Highlight: lipgloss.Color("#bb9af7"), // purple
 	},
 }
@@ -198,12 +204,12 @@ var Gruvbox = AppTheme{
 	HuhTheme: gruvboxHuh(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("#d79921"), // yellow
-		Muted:     lipgloss.Color("#928374"), // gray
+		Dim:       lipgloss.Color("#665c54"), // bg3 (darker, de-emphasized)
 		Success:   lipgloss.Color("#98971a"), // green
 		Warning:   lipgloss.Color("#d65d0e"), // orange
 		Danger:    lipgloss.Color("#cc241d"), // red
 		Border:    lipgloss.Color("#504945"), // bg2
-		Subtle:    lipgloss.Color("#665c54"), // bg3
+		Muted:     lipgloss.Color("#928374"), // gray (lighter, secondary text)
 		Highlight: lipgloss.Color("#d3869b"), // purple
 	},
 }
@@ -257,12 +263,12 @@ var Nord = AppTheme{
 	HuhTheme: nordHuh(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("#88c0d0"), // frost cyan
-		Muted:     lipgloss.Color("#4c566a"), // polar night 3
+		Dim:       lipgloss.Color("#434c5e"), // polar night 2 (darker, de-emphasized)
 		Success:   lipgloss.Color("#a3be8c"), // aurora green
 		Warning:   lipgloss.Color("#ebcb8b"), // aurora yellow
 		Danger:    lipgloss.Color("#bf616a"), // aurora red
 		Border:    lipgloss.Color("#3b4252"), // polar night 1
-		Subtle:    lipgloss.Color("#434c5e"), // polar night 2
+		Muted:     lipgloss.Color("#4c566a"), // polar night 3 (lighter, secondary text)
 		Highlight: lipgloss.Color("#b48ead"), // aurora purple
 	},
 }
@@ -315,12 +321,12 @@ var SolarizedDark = AppTheme{
 	HuhTheme: solarizedDarkHuh(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("#268bd2"), // blue
-		Muted:     lipgloss.Color("#586e75"), // base01
+		Dim:       lipgloss.Color("#586e75"), // base01 (darker, de-emphasized)
 		Success:   lipgloss.Color("#859900"), // green
 		Warning:   lipgloss.Color("#b58900"), // yellow
 		Danger:    lipgloss.Color("#dc322f"), // red
 		Border:    lipgloss.Color("#073642"), // base02
-		Subtle:    lipgloss.Color("#586e75"), // base01
+		Muted:     lipgloss.Color("#839496"), // base0 (lighter, secondary text)
 		Highlight: lipgloss.Color("#2aa198"), // cyan
 	},
 }
@@ -374,12 +380,12 @@ var Monokai = AppTheme{
 	HuhTheme: monokaiHuh(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("#f92672"), // pink/red
-		Muted:     lipgloss.Color("#75715e"), // comment brown
+		Dim:       lipgloss.Color("#75715e"), // comment brown (darker, de-emphasized)
 		Success:   lipgloss.Color("#a6e22e"), // green
 		Warning:   lipgloss.Color("#e6db74"), // yellow
 		Danger:    lipgloss.Color("#f92672"), // pink/red
 		Border:    lipgloss.Color("#3e3d32"), // bg light
-		Subtle:    lipgloss.Color("#49483e"), // bg lighter
+		Muted:     lipgloss.Color("#908b83"), // warm gray (lighter, secondary text)
 		Highlight: lipgloss.Color("#66d9e8"), // cyan
 	},
 }
@@ -433,12 +439,12 @@ var RosePine = AppTheme{
 	HuhTheme: rosePineHuh(),
 	Colors: Palette{
 		Primary:   lipgloss.Color("#c4a7e7"), // iris/purple
-		Muted:     lipgloss.Color("#6e6a86"), // muted
+		Dim:       lipgloss.Color("#6e6a86"), // muted (darker, de-emphasized)
 		Success:   lipgloss.Color("#31748f"), // pine/teal
 		Warning:   lipgloss.Color("#f6c177"), // gold
 		Danger:    lipgloss.Color("#eb6f92"), // love/rose
 		Border:    lipgloss.Color("#26233a"), // overlay
-		Subtle:    lipgloss.Color("#6e6a86"), // muted
+		Muted:     lipgloss.Color("#9893a5"), // subtle (lighter, secondary text)
 		Highlight: lipgloss.Color("#ebbcba"), // rose
 	},
 }

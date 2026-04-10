@@ -14,5 +14,5 @@ func NewSpinner() spinner.Model {
 
 // SpinnerView renders the loading state with an animated spinner.
 func SpinnerView(s spinner.Model) string {
-	return "\n  " + s.View() + MutedStyle.Render(" Loading…")
+	return "\n  " + s.View() + DimStyle.Render(" Loading…")
 }

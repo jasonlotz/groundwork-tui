@@ -277,7 +277,7 @@ func (m Model) View() string {
 		if m.filter != filterAll {
 			label = "No " + strings.ToLower(m.filter.Label()) + " sessions yet."
 		}
-		b.WriteString(common.MutedStyle.Render("  " + label + "\n"))
+		b.WriteString(common.DimStyle.Render("  " + label + "\n"))
 		b.WriteString("\n")
 		b.WriteString(common.RenderHelp(m.keys, m.width))
 		view := b.String()
@@ -347,7 +347,7 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	if len(m.filtered) > visibleRows {
-		b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+		b.WriteString(common.DimStyle.Render(fmt.Sprintf(
 			"  %d–%d of %d sessions\n", start+1, end, len(m.filtered),
 		)))
 	}

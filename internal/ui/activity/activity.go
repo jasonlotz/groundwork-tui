@@ -376,7 +376,7 @@ func (m Model) View() string {
 		if m.filter != filterAll {
 			msg = "  No " + strings.ToLower(filterLabels[m.filter]) + " entries."
 		}
-		b.WriteString(common.MutedStyle.Render(msg + "\n"))
+		b.WriteString(common.DimStyle.Render(msg + "\n"))
 	} else {
 		// RenderTitle=3 + blank=1 + filterBar=1 + blank=1 + table-header=1 + table-sep=1 + blank=1 + help=2 = 11 overhead; tab bar=3 → 14
 		visibleHeight := m.height - 14
@@ -419,7 +419,7 @@ func (m Model) View() string {
 		b.WriteString("\n")
 
 		if len(m.entries) > visibleHeight {
-			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+			b.WriteString(common.DimStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d entries\n", start+1, end, len(m.entries),
 			)))
 		}
@@ -451,7 +451,7 @@ func renderFilterBar(active typeFilter, width int) string {
 		if typeFilter(i) == active {
 			parts = append(parts, common.SelectedStyle.Render("["+label+"]"))
 		} else {
-			parts = append(parts, common.MutedStyle.Render("["+label+"]"))
+			parts = append(parts, common.DimStyle.Render("["+label+"]"))
 		}
 	}
 	_ = width

@@ -157,7 +157,7 @@ func (e *liftEditor) view(width int) string {
 	var b strings.Builder
 	header := fmt.Sprintf("  %-30s  %s", "Exercise", "Weight (lbs)")
 	b.WriteString(common.TableHeaderStyle.Render(header) + "\n")
-	b.WriteString(common.MutedStyle.Render("  "+strings.Repeat("─", width-4)) + "\n")
+	b.WriteString(common.DimStyle.Render("  "+strings.Repeat("─", width-4)) + "\n")
 
 	for i, row := range e.rows {
 		exName := "— none —"
@@ -379,7 +379,7 @@ func (e *runEditor) view(width int) string {
 	var b strings.Builder
 	header := fmt.Sprintf("  %-10s  %-12s  %s", "Zone", "Distance (mi)", "Duration (mm:ss)")
 	b.WriteString(common.TableHeaderStyle.Render(header) + "\n")
-	b.WriteString(common.MutedStyle.Render("  "+strings.Repeat("─", width-4)) + "\n")
+	b.WriteString(common.DimStyle.Render("  "+strings.Repeat("─", width-4)) + "\n")
 
 	for i, row := range e.rows {
 		zone := runZoneLabels[row.zoneIdx]
@@ -703,7 +703,7 @@ func (lw *LogWorkoutForm) View() string {
 			b.WriteString(lw.runEditor.view(popupW))
 		}
 		b.WriteString("\n")
-		b.WriteString(common.MutedStyle.Render(
+		b.WriteString(common.DimStyle.Render(
 			"  enter/space: cycle  tab: next col  j/k: rows  a: add  D: delete  n: continue  esc: back",
 		))
 		return lipgloss.NewStyle().

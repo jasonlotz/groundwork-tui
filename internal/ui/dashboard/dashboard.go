@@ -227,7 +227,7 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	if len(m.activeMaterials) == 0 {
-		b.WriteString(common.MutedStyle.Render("  No active materials.\n"))
+		b.WriteString(common.DimStyle.Render("  No active materials.\n"))
 	} else {
 		// RenderTitle=3 + blank=1 + KPIs=3 + blank=1 + WorkoutKPIs=3 + blank=1 + Section=2 + blank=1 + help=2 = 17 overhead; tab bar=3 → 20; each item is 4 lines
 		workoutOverhead := 0
@@ -244,7 +244,7 @@ func (m Model) View() string {
 			b.WriteString("\n")
 		}
 		if len(m.activeMaterials) > visibleItems {
-			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+			b.WriteString(common.DimStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d\n", start+1, end, len(m.activeMaterials),
 			)))
 		}
@@ -320,9 +320,9 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 	if selected {
 		nameStyle = common.SelectedStyle
 	}
-	skill := common.MutedStyle.Render(common.Truncate(mat.SkillName(), 18))
+	skill := common.DimStyle.Render(common.Truncate(mat.SkillName(), 18))
 	name := nameStyle.Render(common.Truncate(mat.Name, 36))
-	pctLabel := common.MutedStyle.Render(fmt.Sprintf("%.0f%%", mat.PctComplete))
+	pctLabel := common.DimStyle.Render(fmt.Sprintf("%.0f%%", mat.PctComplete))
 	line1 := cursor + dot + " " + name + "  " + skill + "  " + pctLabel
 
 	// Bar width: terminal width minus indent and labels.
@@ -339,12 +339,12 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 		label := fmt.Sprintf("%.4g / %d %s this week",
 			mat.UnitsThisWeek, *mat.WeeklyUnitGoal, mat.UnitType.Label())
 		if mat.ProjectedEndDate != nil {
-			label += common.MutedStyle.Render("  · est. " + common.FormatProjectedDate(*mat.ProjectedEndDate))
+			label += common.DimStyle.Render("  · est. " + common.FormatProjectedDate(*mat.ProjectedEndDate))
 		}
-		line2 = "    " + bar + "  " + common.MutedStyle.Render(label)
+		line2 = "    " + bar + "  " + common.DimStyle.Render(label)
 	} else {
 		// No goal — show a dim placeholder so row height stays consistent.
-		line2 = "    " + common.MutedStyle.Render("no weekly goal set")
+		line2 = "    " + common.DimStyle.Render("no weekly goal set")
 	}
 
 	// Line 3: overall progress bar (neutral color — distinct from weekly pace bar).
@@ -355,7 +355,7 @@ func (m Model) renderMaterialRow(i int, mat model.ActiveMaterial) string {
 	overallBar := common.RenderOverallBar(barWidth, overallPct)
 	overallLabel := fmt.Sprintf("%.4g / %.4g %s overall",
 		mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label())
-	line3 := "    " + overallBar + "  " + common.MutedStyle.Render(overallLabel)
+	line3 := "    " + overallBar + "  " + common.DimStyle.Render(overallLabel)
 
 	return line1 + "\n" + line2 + "\n" + line3 + "\n"
 }

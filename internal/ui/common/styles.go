@@ -17,12 +17,12 @@ import (
 // Change the theme in internal/ui/theme/theme.go to restyle the whole app.
 var (
 	ColorPrimary   = theme.Active.Colors.Primary
-	ColorMuted     = theme.Active.Colors.Muted
+	ColorDim       = theme.Active.Colors.Dim
 	ColorSuccess   = theme.Active.Colors.Success
 	ColorWarning   = theme.Active.Colors.Warning
 	ColorDanger    = theme.Active.Colors.Danger
 	ColorBorder    = theme.Active.Colors.Border
-	ColorSubtle    = theme.Active.Colors.Subtle
+	ColorMuted     = theme.Active.Colors.Muted
 	ColorHighlight = theme.Active.Colors.Highlight
 )
 
@@ -30,18 +30,18 @@ var (
 // match theme.Active. Call this after calling theme.SetActive at runtime.
 func ApplyTheme() {
 	ColorPrimary = theme.Active.Colors.Primary
-	ColorMuted = theme.Active.Colors.Muted
+	ColorDim = theme.Active.Colors.Dim
 	ColorSuccess = theme.Active.Colors.Success
 	ColorWarning = theme.Active.Colors.Warning
 	ColorDanger = theme.Active.Colors.Danger
 	ColorBorder = theme.Active.Colors.Border
-	ColorSubtle = theme.Active.Colors.Subtle
+	ColorMuted = theme.Active.Colors.Muted
 	ColorHighlight = theme.Active.Colors.Highlight
 
 	TitleStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).MarginBottom(1)
-	SubtitleStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
+	SubtitleStyle = lipgloss.NewStyle().Foreground(ColorMuted)
 	SectionStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorHighlight).MarginTop(1)
-	MutedStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	DimStyle = lipgloss.NewStyle().Foreground(ColorDim)
 	SuccessStyle = lipgloss.NewStyle().Foreground(ColorSuccess)
 	WarningStyle = lipgloss.NewStyle().Foreground(ColorWarning)
 	DangerStyle = lipgloss.NewStyle().Foreground(ColorDanger)
@@ -55,19 +55,19 @@ func ApplyTheme() {
 		BorderForeground(ColorPrimary).
 		Padding(1, 2).
 		Width(60)
-	HelpStyle = lipgloss.NewStyle().Foreground(ColorMuted).MarginTop(1)
-	StatLabelStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
+	HelpStyle = lipgloss.NewStyle().Foreground(ColorDim).MarginTop(1)
+	StatLabelStyle = lipgloss.NewStyle().Foreground(ColorMuted)
 	StatValueStyle = lipgloss.NewStyle().Bold(true)
 	CompletedNameStyle = lipgloss.NewStyle().Foreground(ColorPrimary).Strikethrough(true)
-	InactiveNameStyle = lipgloss.NewStyle().Foreground(ColorMuted).Italic(true)
-	ArchivedNameStyle = lipgloss.NewStyle().Foreground(ColorMuted).Italic(true)
+	InactiveNameStyle = lipgloss.NewStyle().Foreground(ColorDim).Italic(true)
+	ArchivedNameStyle = lipgloss.NewStyle().Foreground(ColorDim).Italic(true)
 	DefaultNameStyle = lipgloss.NewStyle()
 	CompletedStatusStyle = lipgloss.NewStyle().Foreground(ColorPrimary)
 	SpinnerStyle = lipgloss.NewStyle().Foreground(ColorHighlight)
 	TableBorderStyle = lipgloss.NewStyle().Foreground(ColorBorder)
-	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorSubtle).Bold(true)
+	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorMuted).Bold(true)
 	TableSelectedStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
-	TableCellStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
+	TableCellStyle = lipgloss.NewStyle().Foreground(ColorMuted)
 	titleRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
 
 	// Rebuild tab bar styles too.
@@ -82,15 +82,16 @@ var (
 			MarginBottom(1)
 
 	SubtitleStyle = lipgloss.NewStyle().
-			Foreground(ColorSubtle)
+			Foreground(ColorMuted)
 
 	SectionStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(ColorHighlight).
 			MarginTop(1)
 
-	MutedStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+	// DimStyle renders truly de-emphasized text: archived names, help text, inactive UI.
+	DimStyle = lipgloss.NewStyle().
+			Foreground(ColorDim)
 
 	SuccessStyle = lipgloss.NewStyle().
 			Foreground(ColorSuccess)
@@ -119,11 +120,11 @@ var (
 			Width(60)
 
 	HelpStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted).
+			Foreground(ColorDim).
 			MarginTop(1)
 
 	StatLabelStyle = lipgloss.NewStyle().
-			Foreground(ColorSubtle)
+			Foreground(ColorMuted)
 
 	StatValueStyle = lipgloss.NewStyle().
 			Bold(true)
@@ -133,14 +134,14 @@ var (
 				Foreground(ColorPrimary).
 				Strikethrough(true)
 
-	// InactiveNameStyle renders inactive material names in italic muted text.
+	// InactiveNameStyle renders inactive material names in italic dim text.
 	InactiveNameStyle = lipgloss.NewStyle().
-				Foreground(ColorMuted).
+				Foreground(ColorDim).
 				Italic(true)
 
-	// ArchivedNameStyle renders archived item names in italic muted text.
+	// ArchivedNameStyle renders archived item names in italic dim text.
 	ArchivedNameStyle = lipgloss.NewStyle().
-				Foreground(ColorMuted).
+				Foreground(ColorDim).
 				Italic(true)
 
 	// DefaultNameStyle is a plain unstyled style used as the default for list row names.
@@ -156,13 +157,13 @@ var (
 	TableBorderStyle = lipgloss.NewStyle().Foreground(ColorBorder)
 
 	// TableHeaderStyle styles the header row in lipgloss/table renders.
-	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorSubtle).Bold(true)
+	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorMuted).Bold(true)
 
 	// TableSelectedStyle highlights the selected row in lipgloss/table renders.
 	TableSelectedStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
 
 	// TableCellStyle is the default cell style in lipgloss/table renders.
-	TableCellStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
+	TableCellStyle = lipgloss.NewStyle().Foreground(ColorMuted)
 
 	// titleRuleStyle styles the horizontal rule drawn beneath the title.
 	titleRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
@@ -288,7 +289,7 @@ func StatCard(label, value string) string {
 // KeyHelp renders a single key binding hint: "key  desc".
 func KeyHelp(key, desc string) string {
 	k := lipgloss.NewStyle().Foreground(ColorHighlight).Render(key)
-	return k + "  " + MutedStyle.Render(desc)
+	return k + "  " + DimStyle.Render(desc)
 }
 
 // ClampBarWidth computes a progress bar width from the terminal width,
@@ -328,7 +329,7 @@ func FormatProjectedDate(s string) string {
 }
 
 // RenderOverallBar renders a fixed-width bar for overall (lifetime) progress.
-// Uses a neutral color (ColorSubtle) so it doesn't collide with the
+// Uses a neutral color (ColorDim) so it doesn't collide with the
 // green/yellow/red pace-coded weekly bar rendered above it.
 func RenderOverallBar(width int, pct float64) string {
 	if pct < 0 {
@@ -337,7 +338,7 @@ func RenderOverallBar(width int, pct float64) string {
 	if pct > 1 {
 		pct = 1
 	}
-	fillStyle := lipgloss.NewStyle().Foreground(ColorMuted)
+	fillStyle := lipgloss.NewStyle().Foreground(ColorDim)
 	emptyStyle := lipgloss.NewStyle().Foreground(ColorBorder)
 	filled := int(pct * float64(width))
 	var buf strings.Builder

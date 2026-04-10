@@ -330,9 +330,9 @@ func (m Model) View() string {
 	themeLabel := "[ Theme ]"
 	exLabel := "[ Exercises ]"
 	if m.section == sectionTheme {
-		b.WriteString(common.SelectedStyle.Render(themeLabel) + "  " + common.MutedStyle.Render(exLabel) + "\n")
+		b.WriteString(common.SelectedStyle.Render(themeLabel) + "  " + common.DimStyle.Render(exLabel) + "\n")
 	} else {
-		b.WriteString(common.MutedStyle.Render(themeLabel) + "  " + common.SelectedStyle.Render(exLabel) + "\n")
+		b.WriteString(common.DimStyle.Render(themeLabel) + "  " + common.SelectedStyle.Render(exLabel) + "\n")
 	}
 	b.WriteString("\n")
 
@@ -377,7 +377,7 @@ func (m Model) renderThemeSection() string {
 		case selected:
 			nameStr = common.SelectedStyle.Render(t.Name)
 		default:
-			nameStr = common.MutedStyle.Render(t.Name)
+			nameStr = common.DimStyle.Render(t.Name)
 		}
 
 		swatch := renderSwatch(t)
@@ -390,18 +390,18 @@ func (m Model) renderExercisesSection() string {
 	var b strings.Builder
 
 	if m.exerciseLoading {
-		b.WriteString(common.MutedStyle.Render("  Loading exercises…\n"))
+		b.WriteString(common.DimStyle.Render("  Loading exercises…\n"))
 		return b.String()
 	}
 
 	archived := ""
 	if m.showArchived {
-		archived = common.MutedStyle.Render(" (showing archived)")
+		archived = common.DimStyle.Render(" (showing archived)")
 	}
 	b.WriteString(common.SectionStyle.Render("Exercises") + archived + "\n")
 
 	if len(m.exercises) == 0 {
-		b.WriteString(common.MutedStyle.Render("  No exercises. Press 'a' to add one.\n"))
+		b.WriteString(common.DimStyle.Render("  No exercises. Press 'a' to add one.\n"))
 		return b.String()
 	}
 
@@ -432,7 +432,7 @@ func (m Model) renderExercisesSection() string {
 	}
 
 	if len(m.exercises) > visibleItems {
-		b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+		b.WriteString(common.DimStyle.Render(fmt.Sprintf(
 			"  %d–%d of %d\n", start+1, end, len(m.exercises),
 		)))
 	}
@@ -447,7 +447,7 @@ func renderSwatch(t theme.AppTheme) string {
 		t.Colors.Success,
 		t.Colors.Warning,
 		t.Colors.Danger,
-		t.Colors.Muted,
+		t.Colors.Dim,
 	}
 	var parts []string
 	for _, c := range swatchColors {

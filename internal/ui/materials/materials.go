@@ -400,10 +400,10 @@ func (m Model) View() string {
 	// Header — title with inline filter tags on the same line, rule beneath.
 	var tags []string
 	if m.activeOnly {
-		tags = append(tags, common.MutedStyle.Render("[active only]"))
+		tags = append(tags, common.DimStyle.Render("[active only]"))
 	}
 	if m.search != "" {
-		tags = append(tags, common.MutedStyle.Render("[search: "+m.search+"]"))
+		tags = append(tags, common.DimStyle.Render("[search: "+m.search+"]"))
 	}
 	b.WriteString(common.RenderTitleWithTag("Materials", strings.Join(tags, "  "), m.width))
 	b.WriteString("\n")
@@ -414,7 +414,7 @@ func (m Model) View() string {
 	}
 
 	if len(m.filtered) == 0 {
-		b.WriteString(common.MutedStyle.Render("  No materials found.\n"))
+		b.WriteString(common.DimStyle.Render("  No materials found.\n"))
 	} else {
 		// RenderTitle=2 + blank=1 + help(marginTop+line)=2 = 5 overhead; tab bar=3 → 8
 		// search row (when visible) = 2 extra lines; always include for stability.
@@ -432,7 +432,7 @@ func (m Model) View() string {
 			b.WriteString("\n")
 		}
 		if len(m.filtered) > visibleItems {
-			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+			b.WriteString(common.DimStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d\n", start+1, end, len(m.filtered),
 			)))
 		}
@@ -463,12 +463,12 @@ func (m Model) renderRow(i int) string {
 		pct = mat.CompletedUnits / mat.TotalUnits
 	}
 	bar := common.RenderOverallBar(18, pct)
-	progressText := common.MutedStyle.Render(fmt.Sprintf(
+	progressText := common.DimStyle.Render(fmt.Sprintf(
 		"%.4g / %.4g %s", mat.CompletedUnits, mat.TotalUnits, mat.UnitType.Label(),
 	))
 
 	// Status badge
-	statusStyle := common.MutedStyle
+	statusStyle := common.DimStyle
 	statusStr := "inactive"
 	switch mat.Status {
 	case model.StatusActive:
@@ -481,13 +481,13 @@ func (m Model) renderRow(i int) string {
 	status := statusStyle.Render(statusStr)
 
 	// Type + skill
-	meta := common.MutedStyle.Render(common.Truncate(mat.TypeName(), 14)) +
-		"  " + common.MutedStyle.Render(common.Truncate(mat.SkillName(), 18))
+	meta := common.DimStyle.Render(common.Truncate(mat.TypeName(), 14)) +
+		"  " + common.DimStyle.Render(common.Truncate(mat.SkillName(), 18))
 
 	// Weekly goal indicator (only for active)
 	weeklyInfo := ""
 	if mat.Status == model.StatusActive && mat.WeeklyUnitGoal != nil && *mat.WeeklyUnitGoal > 0 {
-		weeklyInfo = "  " + common.MutedStyle.Render(fmt.Sprintf("goal: %d/%s", *mat.WeeklyUnitGoal, mat.UnitType.Label()))
+		weeklyInfo = "  " + common.DimStyle.Render(fmt.Sprintf("goal: %d/%s", *mat.WeeklyUnitGoal, mat.UnitType.Label()))
 	}
 
 	name := nameStyle.Render(common.Truncate(mat.Name, 36))

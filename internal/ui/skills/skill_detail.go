@@ -165,7 +165,7 @@ func (m DetailModel) View() string {
 	var b strings.Builder
 
 	// Title + breadcrumb
-	crumb := common.MutedStyle.Render(d.Skill.Category.Name + " › ")
+	crumb := common.DimStyle.Render(d.Skill.Category.Name + " › ")
 	b.WriteString(common.RenderTitle(crumb+d.Skill.Name, m.width))
 	b.WriteString("\n")
 
@@ -184,7 +184,7 @@ func (m DetailModel) View() string {
 	b.WriteString("\n")
 
 	if len(d.AllMaterials) == 0 {
-		b.WriteString(common.MutedStyle.Render("  No materials.\n"))
+		b.WriteString(common.DimStyle.Render("  No materials.\n"))
 	} else {
 		// RenderTitle=3 + blank=1 + KPIs=3 + blank=1 + Section=2 + table-header=1 + table-sep=1 + blank=1 + help=2 = 15 overhead; tab bar=3 → 18
 		visibleItems := m.height - 18
@@ -219,7 +219,7 @@ func (m DetailModel) View() string {
 		b.WriteString("\n")
 
 		if len(d.AllMaterials) > visibleItems {
-			b.WriteString(common.MutedStyle.Render(fmt.Sprintf(
+			b.WriteString(common.DimStyle.Render(fmt.Sprintf(
 				"  %d–%d of %d\n", start+1, end, len(d.AllMaterials),
 			)))
 		}
