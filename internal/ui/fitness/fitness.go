@@ -82,7 +82,7 @@ func New(client *api.Client) Model {
 		spinner: common.NewSpinner(),
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
-			common.KB("t", "filter type"),
+			common.KB("/", "filter type"),
 			common.KB("w", "log workout"),
 			common.KB("e", "edit"),
 			common.KB("D", "delete"),
@@ -221,7 +221,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "t":
+		case "/":
 			m.filter = m.filter.next()
 			m.applyFilter()
 			m.cursor = 0
