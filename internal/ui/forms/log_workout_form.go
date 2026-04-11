@@ -201,7 +201,7 @@ func (e *liftEditor) toLiftEntries() []api.LiftEntry {
 		}
 		w, err := strconv.ParseFloat(strings.TrimSpace(row.weightStr), 64)
 		if err != nil || w <= 0 {
-			w = 0
+			continue
 		}
 		out = append(out, api.LiftEntry{
 			ExerciseID: e.exercises[row.exerciseIdx].id,
@@ -451,7 +451,7 @@ const (
 type detailsState struct {
 	date        string
 	notes       string
-	durationStr string // lift only: optional minutes
+	durationStr string // lift only: required minutes
 }
 
 // LogWorkoutForm is a Bubble Tea model for the log-workout huh form.
@@ -522,8 +522,20 @@ func (lw *LogWorkoutForm) buildDetailForm() *huh.Form {
 				Value(&lw.details.date),
 			huh.NewInput().
 				Title("Duration (minutes)").
-				Description("Optional").
 				Placeholder("60").
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("duration is required")
+					}
+					v, err := strconv.Atoi(strings.TrimSpace(s))
+					if err != nil {
+						return fmt.Errorf("must be a whole number")
+					}
+					if v <= 0 {
+						return fmt.Errorf("must be greater than 0")
+					}
+					return nil
+				}).
 				Value(&lw.details.durationStr),
 			huh.NewText().
 				Title("Notes").
@@ -561,12 +573,25 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// esc cancels from any step
 		if msg.String() == "esc" {
 			if lw.step == stepRows {
-				// Go back to type selection.
+				if lw.workoutType == "LIFTING" {
+					// lifting: rows is last step, go back to details
+					lw.step = stepDetails
+					lw.detailForm = lw.buildDetailForm()
+					return lw, lw.detailForm.Init()
+				}
+				// running: rows is first step, go back to type
 				lw.step = stepType
 				lw.typeForm = lw.buildTypeForm()
 				return lw, lw.typeForm.Init()
 			}
 			if lw.step == stepDetails {
+				if lw.workoutType == "LIFTING" {
+					// lifting: details is second step, go back to type
+					lw.step = stepType
+					lw.typeForm = lw.buildTypeForm()
+					return lw, lw.typeForm.Init()
+				}
+				// running: details is last step, go back to rows
 				lw.step = stepRows
 				return lw, nil
 			}
@@ -587,20 +612,28 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var done bool
 		lw.typeForm, cmd, done = updateHuhForm(lw.typeForm, msg)
 		if done {
-			lw.step = stepRows
 			if lw.workoutType == "LIFTING" {
-				lw.liftEditor = newLiftEditor(lw.exercises)
-			} else {
-				lw.runEditor = newRunEditor()
+				// lifting: go to details before exercises
+				lw.step = stepDetails
+				lw.detailForm = lw.buildDetailForm()
+				return lw, lw.detailForm.Init()
 			}
+			// running: go to row editor first
+			lw.step = stepRows
+			lw.runEditor = newRunEditor()
 			return lw, nil
 		}
 		return lw, cmd
 
 	case stepRows:
 		if key, ok := msg.(tea.KeyMsg); ok {
-			// 'n' or ctrl+enter advances to details step.
+			// 'n' or ctrl+enter advances to next step.
 			if key.String() == "n" || key.String() == "ctrl+enter" {
+				if lw.workoutType == "LIFTING" {
+					// lifting: exercises is the last step, submit
+					return lw, lw.submit()
+				}
+				// running: advance to details
 				lw.step = stepDetails
 				lw.detailForm = lw.buildDetailForm()
 				return lw, lw.detailForm.Init()
@@ -618,6 +651,13 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var done bool
 		lw.detailForm, cmd, done = updateHuhForm(lw.detailForm, msg)
 		if done {
+			if lw.workoutType == "LIFTING" {
+				// lifting: advance to exercises step
+				lw.step = stepRows
+				lw.liftEditor = newLiftEditor(lw.exercises)
+				return lw, nil
+			}
+			// running: details is the last step, submit
 			return lw, lw.submit()
 		}
 		return lw, cmd
@@ -698,6 +738,7 @@ func (lw *LogWorkoutForm) View() string {
 		popupW := 62
 		b.WriteString(common.SelectedStyle.Render("Log "+capitalize(lw.workoutType)) + "\n\n")
 		if lw.workoutType == "LIFTING" {
+			b.WriteString(common.DimStyle.Render("  Exercises (optional)") + "\n\n")
 			b.WriteString(lw.liftEditor.view(popupW))
 		} else {
 			b.WriteString(lw.runEditor.view(popupW))

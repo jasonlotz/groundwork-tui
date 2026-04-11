@@ -4,6 +4,8 @@
 
 Build and maintain groundwork-tui, a terminal UI client for the [Groundwork](https://groundwork.lotztech.com) learning tracker. Written in Go using the Charm (Bubble Tea) framework. Communicates with the Groundwork web app via its tRPC HTTP API using a personal API key.
 
+The Groundwork web app source code (Next.js/tRPC) that this TUI depends on is located at `../groundwork` relative to this repo. Refer to it when adding or modifying API calls to verify procedure names, input shapes, and response types.
+
 ---
 
 ## Critical Rules
