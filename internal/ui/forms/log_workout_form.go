@@ -47,6 +47,8 @@ func newLiftEditor(exercises []exerciseOption) liftEditor {
 	return e
 }
 
+func (e *liftEditor) isTyping() bool { return e.typing }
+
 func (e *liftEditor) addRow() {
 	if len(e.rows) < 12 {
 		e.rows = append(e.rows, liftRow{exerciseIdx: -1})
@@ -71,21 +73,18 @@ func (e *liftEditor) update(msg tea.KeyMsg) {
 	if e.col == 1 && e.typing {
 		// Text entry mode for weight field.
 		switch msg.String() {
-		case "enter", "tab", "down":
+		case "tab", "down":
 			e.typing = false
-			if msg.String() != "tab" {
-				e.col = 0
-				if msg.String() == "down" || msg.String() == "enter" {
+			e.col = 0
+			if msg.String() == "down" {
+				if e.cursor < len(e.rows)-1 {
 					e.cursor++
-					if e.cursor >= len(e.rows) {
-						e.addRow()
-					}
 				}
-			} else {
-				// tab moves back to exercise col
-				e.col = 0
 			}
 		case "esc":
+			e.typing = false
+		case "enter":
+			// enter commits the value and exits typing mode only
 			e.typing = false
 		case "backspace":
 			if len(e.typingBuf) > 0 {
@@ -132,14 +131,14 @@ func (e *liftEditor) update(msg tea.KeyMsg) {
 		}
 	case "enter":
 		if e.col == 0 {
-			// Cycle to next exercise.
-			e.rows[e.cursor].exerciseIdx++
-			if e.rows[e.cursor].exerciseIdx >= len(e.exercises) {
-				e.rows[e.cursor].exerciseIdx = -1
-			}
+			// Move focus to weight column.
+			e.col = 1
+			e.typing = true
+			e.typingBuf = e.rows[e.cursor].weightStr
 		}
+		// Weight col: enter is intercepted by parent before reaching here.
 	case " ":
-		// Space also cycles exercise when on exercise col.
+		// Space cycles exercise when on exercise col.
 		if e.col == 0 {
 			e.rows[e.cursor].exerciseIdx++
 			if e.rows[e.cursor].exerciseIdx >= len(e.exercises) {
@@ -241,6 +240,8 @@ func newRunEditor() runEditor {
 	return runEditor{rows: []runSegRow{{zoneIdx: 0}}}
 }
 
+func (e *runEditor) isTyping() bool { return e.typing }
+
 func (e *runEditor) addRow() {
 	if len(e.rows) < 12 {
 		e.rows = append(e.rows, runSegRow{zoneIdx: 0})
@@ -288,13 +289,6 @@ func (e *runEditor) isTextCol() bool {
 func (e *runEditor) update(msg tea.KeyMsg) {
 	if e.typing && e.isTextCol() {
 		switch msg.String() {
-		case "enter", "down":
-			e.typing = false
-			e.col = 0
-			e.cursor++
-			if e.cursor >= len(e.rows) {
-				e.addRow()
-			}
 		case "tab":
 			e.typing = false
 			e.col++
@@ -307,6 +301,9 @@ func (e *runEditor) update(msg tea.KeyMsg) {
 				}
 			}
 		case "esc":
+			e.typing = false
+		case "enter":
+			// enter commits the value and exits typing mode only
 			e.typing = false
 		case "backspace":
 			if len(e.typingBuf) > 0 {
@@ -357,9 +354,17 @@ func (e *runEditor) update(msg tea.KeyMsg) {
 				e.typingBuf = e.currentFieldStr()
 			}
 		}
-	case "enter", " ":
+	case "enter":
 		if e.col == runColZone {
-			// Cycle zone.
+			// Enter moves to distance column.
+			e.col = runColDistance
+			e.typing = true
+			e.typingBuf = e.currentFieldStr()
+		}
+		// Text cols: enter is intercepted by parent before reaching here.
+	case " ":
+		if e.col == runColZone {
+			// Space cycles zone.
 			e.rows[e.cursor].zoneIdx++
 			if e.rows[e.cursor].zoneIdx >= len(runZones) {
 				e.rows[e.cursor].zoneIdx = 0
@@ -573,34 +578,23 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// esc cancels from any step
 		if msg.String() == "esc" {
 			if lw.step == stepRows {
-				if lw.workoutType == "LIFTING" {
-					// lifting: rows is last step, go back to details
-					lw.step = stepDetails
-					lw.detailForm = lw.buildDetailForm()
-					return lw, lw.detailForm.Init()
-				}
-				// running: rows is first step, go back to type
+				// rows is last step for both types — go back to details
+				lw.step = stepDetails
+				lw.detailForm = lw.buildDetailForm()
+				return lw, lw.detailForm.Init()
+			}
+			if lw.step == stepDetails {
+				// details is second step for both types — go back to type
 				lw.step = stepType
 				lw.typeForm = lw.buildTypeForm()
 				return lw, lw.typeForm.Init()
-			}
-			if lw.step == stepDetails {
-				if lw.workoutType == "LIFTING" {
-					// lifting: details is second step, go back to type
-					lw.step = stepType
-					lw.typeForm = lw.buildTypeForm()
-					return lw, lw.typeForm.Init()
-				}
-				// running: details is last step, go back to rows
-				lw.step = stepRows
-				return lw, nil
 			}
 			return lw, func() tea.Msg { return WorkoutLogDoneMsg{Cancelled: true} }
 		}
 
 	case workoutExercisesLoadedMsg:
 		lw.exercises = msg.exercises
-		if lw.step == stepRows && lw.workoutType == "LIFTING" {
+		if lw.step == stepRows && lw.workoutType == "LIFTING" && lw.liftEditor.rows == nil {
 			lw.liftEditor = newLiftEditor(lw.exercises)
 		}
 		return lw, nil
@@ -612,31 +606,26 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var done bool
 		lw.typeForm, cmd, done = updateHuhForm(lw.typeForm, msg)
 		if done {
-			if lw.workoutType == "LIFTING" {
-				// lifting: go to details before exercises
-				lw.step = stepDetails
-				lw.detailForm = lw.buildDetailForm()
-				return lw, lw.detailForm.Init()
-			}
-			// running: go to row editor first
-			lw.step = stepRows
-			lw.runEditor = newRunEditor()
-			return lw, nil
+			// both types go to details first
+			lw.step = stepDetails
+			lw.detailForm = lw.buildDetailForm()
+			return lw, lw.detailForm.Init()
 		}
 		return lw, cmd
 
 	case stepRows:
 		if key, ok := msg.(tea.KeyMsg); ok {
-			// 'n' or ctrl+enter advances to next step.
-			if key.String() == "n" || key.String() == "ctrl+enter" {
+			// enter submits only when not in a text-typing field
+			if key.String() == "enter" {
+				typing := false
 				if lw.workoutType == "LIFTING" {
-					// lifting: exercises is the last step, submit
+					typing = lw.liftEditor.isTyping()
+				} else {
+					typing = lw.runEditor.isTyping()
+				}
+				if !typing {
 					return lw, lw.submit()
 				}
-				// running: advance to details
-				lw.step = stepDetails
-				lw.detailForm = lw.buildDetailForm()
-				return lw, lw.detailForm.Init()
 			}
 			if lw.workoutType == "LIFTING" {
 				lw.liftEditor.update(key)
@@ -651,14 +640,18 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var done bool
 		lw.detailForm, cmd, done = updateHuhForm(lw.detailForm, msg)
 		if done {
+			// both types advance to row editor after details
+			lw.step = stepRows
 			if lw.workoutType == "LIFTING" {
-				// lifting: advance to exercises step
-				lw.step = stepRows
-				lw.liftEditor = newLiftEditor(lw.exercises)
-				return lw, nil
+				if lw.liftEditor.rows == nil {
+					lw.liftEditor = newLiftEditor(lw.exercises)
+				}
+			} else {
+				if lw.runEditor.rows == nil {
+					lw.runEditor = newRunEditor()
+				}
 			}
-			// running: details is the last step, submit
-			return lw, lw.submit()
+			return lw, nil
 		}
 		return lw, cmd
 	}
@@ -741,11 +734,12 @@ func (lw *LogWorkoutForm) View() string {
 			b.WriteString(common.DimStyle.Render("  Exercises (optional)") + "\n\n")
 			b.WriteString(lw.liftEditor.view(popupW))
 		} else {
+			b.WriteString(common.DimStyle.Render("  Segments") + "\n\n")
 			b.WriteString(lw.runEditor.view(popupW))
 		}
 		b.WriteString("\n")
 		b.WriteString(common.DimStyle.Render(
-			"  enter/space: cycle  tab: next col  j/k: rows  a: add  D: delete  n: continue  esc: back",
+			"  space: cycle  tab: next col  j/k: rows  a: add  D: delete  enter: submit  esc: back",
 		))
 		return lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
