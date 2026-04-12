@@ -15,13 +15,13 @@ import (
 )
 
 // EditWorkoutForm is a Bubble Tea model for editing an existing workout session.
-// It skips the type-select step (type is fixed) and starts directly at the row
-// editor (step 1), pre-populated from the session data.
+// It skips the type-select step (type is fixed) and follows the same step order
+// as LogWorkoutForm: details first, then the row editor.
 type EditWorkoutForm struct {
 	client     *api.Client
 	session    model.WorkoutSession
 	exercises  []exerciseOption // used only for LIFTING
-	step       int              // stepRows or stepDetails
+	step       int              // stepDetails or stepRows
 	liftEditor liftEditor
 	runEditor  runEditor
 	details    detailsState
@@ -35,26 +35,28 @@ func NewEditWorkoutForm(client *api.Client, session model.WorkoutSession, exerci
 		client:    client,
 		session:   session,
 		exercises: exercises,
-		step:      stepRows,
+		step:      stepDetails,
 	}
 
-	// Pre-populate details
+	// Pre-populate details from existing session.
 	f.details = detailsState{
 		date: session.Date.Value,
 	}
 	if session.Notes != nil {
 		f.details.notes = *session.Notes
 	}
+	if session.Type == model.WorkoutTypeLifting && session.DurationMinutes != nil {
+		f.details.durationStr = strconv.Itoa(*session.DurationMinutes)
+	}
 
+	// Pre-build the editors so they're ready when we advance to stepRows.
 	if session.Type == model.WorkoutTypeLifting {
 		f.liftEditor = f.buildLiftEditor()
-		if session.DurationMinutes != nil {
-			f.details.durationStr = strconv.Itoa(*session.DurationMinutes)
-		}
 	} else {
 		f.runEditor = f.buildRunEditor()
 	}
 
+	f.detailForm = f.buildDetailForm()
 	return f
 }
 
@@ -151,7 +153,7 @@ func (f *EditWorkoutForm) buildDetailForm() *huh.Form {
 }
 
 func (f *EditWorkoutForm) Init() tea.Cmd {
-	return nil
+	return f.detailForm.Init()
 }
 
 func (f *EditWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -160,21 +162,42 @@ func (f *EditWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return f, func() tea.Msg { return WorkoutLogDoneMsg{Cancelled: true} }
 		}
 		if key.String() == "esc" {
-			if f.step == stepDetails {
-				f.step = stepRows
-				return f, nil
+			if f.step == stepRows {
+				// rows → back to details (mirrors log form: esc on rows → details)
+				f.step = stepDetails
+				f.detailForm = f.buildDetailForm()
+				return f, f.detailForm.Init()
 			}
+			// details → cancel (no type step in edit form)
 			return f, func() tea.Msg { return WorkoutLogDoneMsg{Cancelled: true} }
 		}
 	}
 
 	switch f.step {
+	case stepDetails:
+		var cmd tea.Cmd
+		var done bool
+		f.detailForm, cmd, done = updateHuhForm(f.detailForm, msg)
+		if done {
+			// Advance to row editor.
+			f.step = stepRows
+			return f, nil
+		}
+		return f, cmd
+
 	case stepRows:
 		if key, ok := msg.(tea.KeyMsg); ok {
-			if key.String() == "n" || key.String() == "ctrl+enter" {
-				f.step = stepDetails
-				f.detailForm = f.buildDetailForm()
-				return f, f.detailForm.Init()
+			// enter submits when not in a text-typing field — same as log form.
+			if key.String() == "enter" {
+				typing := false
+				if f.session.Type == model.WorkoutTypeLifting {
+					typing = f.liftEditor.isTyping()
+				} else {
+					typing = f.runEditor.isTyping()
+				}
+				if !typing {
+					return f, f.submit()
+				}
 			}
 			if f.session.Type == model.WorkoutTypeLifting {
 				f.liftEditor.update(key)
@@ -183,15 +206,6 @@ func (f *EditWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return f, nil
-
-	case stepDetails:
-		var cmd tea.Cmd
-		var done bool
-		f.detailForm, cmd, done = updateHuhForm(f.detailForm, msg)
-		if done {
-			return f, f.submit()
-		}
-		return f, cmd
 	}
 
 	return f, nil
@@ -258,18 +272,23 @@ func (f *EditWorkoutForm) View() string {
 	var b strings.Builder
 
 	switch f.step {
+	case stepDetails:
+		return common.PopupStyle.Render(f.detailForm.View())
+
 	case stepRows:
 		popupW := 62
 		title := "Edit " + capitalize(string(f.session.Type))
 		b.WriteString(common.SelectedStyle.Render(title) + "\n\n")
 		if f.session.Type == model.WorkoutTypeLifting {
+			b.WriteString(common.DimStyle.Render("  Exercises (optional)") + "\n\n")
 			b.WriteString(f.liftEditor.view(popupW))
 		} else {
+			b.WriteString(common.DimStyle.Render("  Segments") + "\n\n")
 			b.WriteString(f.runEditor.view(popupW))
 		}
 		b.WriteString("\n")
 		b.WriteString(common.DimStyle.Render(
-			"  enter/space: cycle  tab: next col  j/k: rows  a: add  D: delete  n: continue  esc: cancel",
+			"  space: cycle  tab: next col  j/k: rows  a: add  D: delete  enter: submit  esc: back",
 		))
 		return lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -277,9 +296,6 @@ func (f *EditWorkoutForm) View() string {
 			Padding(1, 2).
 			Width(popupW).
 			Render(b.String())
-
-	case stepDetails:
-		return common.PopupStyle.Render(f.detailForm.View())
 	}
 
 	return ""
