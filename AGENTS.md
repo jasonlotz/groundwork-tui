@@ -78,7 +78,7 @@ internal/
       confirm_form.go    — ConfirmForm, ConfirmDoneMsg, NewConfirmForm
       log_form.go        — LogForm, LogDoneMsg, NewLogForm
       log_workout_form.go — LogWorkoutForm, WorkoutLogDoneMsg, NewLogWorkoutForm(client)
-      colors.go          — shared colorOptions + ActiveTheme var + updateHuhForm helper
+      colors.go          — shared colorOptions + ActiveTheme var + UpdateHuhForm helper (exported)
     setup/
       setup.go           — first-run wizard (Huh form for base URL + API key)
     theme/

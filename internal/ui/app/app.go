@@ -205,6 +205,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if updated, _ := m.fitnessList.Update(msg); updated != nil {
 			m.fitnessList = updated.(fitness.Model)
 		}
+		return m, nil
 
 	case common.ToastMsg:
 		m.toast = msg.Text

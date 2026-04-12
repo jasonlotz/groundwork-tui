@@ -14,20 +14,23 @@ import (
 )
 
 // Palette — re-exported shorthands pointing to the active theme's colors.
-// Change the theme in internal/ui/theme/theme.go to restyle the whole app.
+// These are zero-valued at package init and populated by ApplyTheme(),
+// which is called once at startup (and again after any runtime theme switch).
 var (
-	ColorPrimary   = theme.Active.Colors.Primary
-	ColorDim       = theme.Active.Colors.Dim
-	ColorSuccess   = theme.Active.Colors.Success
-	ColorWarning   = theme.Active.Colors.Warning
-	ColorDanger    = theme.Active.Colors.Danger
-	ColorBorder    = theme.Active.Colors.Border
-	ColorMuted     = theme.Active.Colors.Muted
-	ColorHighlight = theme.Active.Colors.Highlight
+	ColorPrimary   lipgloss.Color
+	ColorDim       lipgloss.Color
+	ColorSuccess   lipgloss.Color
+	ColorWarning   lipgloss.Color
+	ColorDanger    lipgloss.Color
+	ColorBorder    lipgloss.Color
+	ColorMuted     lipgloss.Color
+	ColorHighlight lipgloss.Color
 )
 
-// ApplyTheme reassigns all palette vars and rebuilds all lipgloss styles to
-// match theme.Active. Call this after calling theme.SetActive at runtime.
+// ApplyTheme reassigns all palette vars and rebuilds every lipgloss style to
+// match theme.Active. It is the single source of truth for all style values —
+// styles are not initialized at declaration time, so this must be called before
+// any rendering occurs. Call it once at startup, and again after theme.SetActive.
 func ApplyTheme() {
 	ColorPrimary = theme.Active.Colors.Primary
 	ColorDim = theme.Active.Colors.Dim
@@ -74,99 +77,63 @@ func ApplyTheme() {
 	rebuildTabStyles()
 }
 
-// Styles
+// Styles — zero-valued at package init; populated exclusively by ApplyTheme().
+// To add a new style: declare it here, then add the initializer in ApplyTheme() above.
 var (
-	TitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorPrimary).
-			MarginBottom(1)
-
-	SubtitleStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
-
-	SectionStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorHighlight).
-			MarginTop(1)
+	TitleStyle    lipgloss.Style
+	SubtitleStyle lipgloss.Style
+	SectionStyle  lipgloss.Style
 
 	// DimStyle renders truly de-emphasized text: archived names, help text, inactive UI.
-	DimStyle = lipgloss.NewStyle().
-			Foreground(ColorDim)
+	DimStyle lipgloss.Style
 
-	SuccessStyle = lipgloss.NewStyle().
-			Foreground(ColorSuccess)
-
-	WarningStyle = lipgloss.NewStyle().
-			Foreground(ColorWarning)
-
-	DangerStyle = lipgloss.NewStyle().
-			Foreground(ColorDanger)
-
-	SelectedStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorHighlight)
+	SuccessStyle  lipgloss.Style
+	WarningStyle  lipgloss.Style
+	DangerStyle   lipgloss.Style
+	SelectedStyle lipgloss.Style
 
 	// BorderStyle is used for KPI stat cards.
-	BorderStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorBorder).
-			Padding(0, 1)
+	BorderStyle lipgloss.Style
 
 	// PopupStyle is the border/padding style for inline overlay popups (e.g. log form).
-	PopupStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorPrimary).
-			Padding(1, 2).
-			Width(60)
+	PopupStyle lipgloss.Style
 
-	HelpStyle = lipgloss.NewStyle().
-			Foreground(ColorDim).
-			MarginTop(1)
-
-	StatLabelStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
-
-	StatValueStyle = lipgloss.NewStyle().
-			Bold(true)
+	HelpStyle      lipgloss.Style
+	StatLabelStyle lipgloss.Style
+	StatValueStyle lipgloss.Style
 
 	// CompletedNameStyle renders completed material names with strikethrough.
-	CompletedNameStyle = lipgloss.NewStyle().
-				Foreground(ColorPrimary).
-				Strikethrough(true)
+	CompletedNameStyle lipgloss.Style
 
 	// InactiveNameStyle renders inactive material names in italic dim text.
-	InactiveNameStyle = lipgloss.NewStyle().
-				Foreground(ColorDim).
-				Italic(true)
+	InactiveNameStyle lipgloss.Style
 
 	// ArchivedNameStyle renders archived item names in italic dim text.
-	ArchivedNameStyle = lipgloss.NewStyle().
-				Foreground(ColorDim).
-				Italic(true)
+	ArchivedNameStyle lipgloss.Style
 
 	// DefaultNameStyle is a plain unstyled style used as the default for list row names.
-	DefaultNameStyle = lipgloss.NewStyle()
+	DefaultNameStyle lipgloss.Style
 
-	// CompletedStatusStyle renders a "done" status label in the primary violet color.
-	CompletedStatusStyle = lipgloss.NewStyle().Foreground(ColorPrimary)
+	// CompletedStatusStyle renders a "done" status label in the primary color.
+	CompletedStatusStyle lipgloss.Style
 
 	// SpinnerStyle is the foreground color applied to the loading spinner.
-	SpinnerStyle = lipgloss.NewStyle().Foreground(ColorHighlight)
+	SpinnerStyle lipgloss.Style
 
 	// TableBorderStyle styles the separator lines in lipgloss/table renders.
-	TableBorderStyle = lipgloss.NewStyle().Foreground(ColorBorder)
+	TableBorderStyle lipgloss.Style
 
 	// TableHeaderStyle styles the header row in lipgloss/table renders.
-	TableHeaderStyle = lipgloss.NewStyle().Foreground(ColorMuted).Bold(true)
+	TableHeaderStyle lipgloss.Style
 
 	// TableSelectedStyle highlights the selected row in lipgloss/table renders.
-	TableSelectedStyle = lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
+	TableSelectedStyle lipgloss.Style
 
 	// TableCellStyle is the default cell style in lipgloss/table renders.
-	TableCellStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	TableCellStyle lipgloss.Style
 
 	// titleRuleStyle styles the horizontal rule drawn beneath the title.
-	titleRuleStyle = lipgloss.NewStyle().Foreground(ColorBorder)
+	titleRuleStyle lipgloss.Style
 )
 
 // RenderTitle renders a decorative title with a horizontal rule beneath it.

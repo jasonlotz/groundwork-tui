@@ -129,7 +129,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			// huh forms don't bubble esc cleanly — handle via NameFormDoneMsg pattern
-			f, cmd, done := updateHuhForm(m.nameForm.form, msg)
+			f, cmd, done := forms.UpdateHuhForm(m.nameForm.form, msg)
 			m.nameForm.form = f
 			if done {
 				name := strings.TrimSpace(*m.nameForm.value)
@@ -470,15 +470,6 @@ func buildNameForm(title, fieldTitle, placeholder string) *exerciseNameForm {
 		),
 	).WithTheme(forms.ActiveTheme)
 	return nf
-}
-
-// updateHuhForm is a wrapper that advances a huh.Form and reports completion.
-func updateHuhForm(f *huh.Form, msg tea.Msg) (*huh.Form, tea.Cmd, bool) {
-	updated, cmd := f.Update(msg)
-	if uf, ok := updated.(*huh.Form); ok {
-		f = uf
-	}
-	return f, cmd, f.State == huh.StateCompleted
 }
 
 // --- API commands ---

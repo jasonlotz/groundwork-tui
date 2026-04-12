@@ -43,11 +43,12 @@ func main() {
 
 	client := api.New(cfg.BaseURL, cfg.APIKey)
 
-	// Apply saved theme before launching.
+	// Apply saved theme before launching (always initialize styles;
+	// SetActive is only called when a saved theme name exists).
 	if cfg.Theme != "" {
 		theme.SetActive(cfg.Theme)
-		common.ApplyTheme()
 	}
+	common.ApplyTheme()
 
 	p := tea.NewProgram(app.New(client, cfg), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {

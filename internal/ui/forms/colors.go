@@ -11,15 +11,20 @@ import (
 // To change the theme for the whole app, edit theme.Active in internal/ui/theme/theme.go.
 var ActiveTheme = theme.Active.HuhTheme
 
-// updateHuhForm forwards msg to the huh form and returns the updated form,
+// UpdateHuhForm forwards msg to the huh form and returns the updated form,
 // a Tea command, and whether the form just completed. Callers use the
 // completed bool to decide which DoneMsg to emit.
-func updateHuhForm(f *huh.Form, msg tea.Msg) (*huh.Form, tea.Cmd, bool) {
+func UpdateHuhForm(f *huh.Form, msg tea.Msg) (*huh.Form, tea.Cmd, bool) {
 	updated, cmd := f.Update(msg)
 	if nf, ok := updated.(*huh.Form); ok {
 		f = nf
 	}
 	return f, cmd, f.State == huh.StateCompleted
+}
+
+// updateHuhForm is the unexported alias used within the forms package.
+func updateHuhForm(f *huh.Form, msg tea.Msg) (*huh.Form, tea.Cmd, bool) {
+	return UpdateHuhForm(f, msg)
 }
 
 // colorOptions are the 10 bg-*-300 Tailwind classes used in the color picker.

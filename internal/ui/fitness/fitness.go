@@ -56,6 +56,12 @@ type fitnessStatsLoadedMsg struct {
 	goals []model.WorkoutGoal
 }
 
+// fitnessExercisesLoadedMsg carries exercises fetched asynchronously for the edit form.
+type fitnessExercisesLoadedMsg struct {
+	session   model.WorkoutSession
+	exercises []model.Exercise
+}
+
 // Model is the root Bubble Tea model for the fitness screen.
 type Model struct {
 	client          *api.Client
@@ -121,6 +127,15 @@ func loadStats(c *api.Client) tea.Cmd {
 			return common.ErrMsg{Err: err}
 		}
 		return fitnessStatsLoadedMsg{stats, goals}
+	}
+}
+
+// loadExercisesForEdit fetches exercises off the UI goroutine so the edit form
+// can be pre-populated without blocking rendering.
+func loadExercisesForEdit(c *api.Client, sess model.WorkoutSession) tea.Cmd {
+	return func() tea.Msg {
+		exercises, _ := c.GetAllExercises(false)
+		return fitnessExercisesLoadedMsg{session: sess, exercises: exercises}
 	}
 }
 
@@ -195,6 +210,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stats = msg.stats
 		m.goals = msg.goals
 
+	case fitnessExercisesLoadedMsg:
+		opts := forms.ExerciseOptions(msg.exercises)
+		ef := forms.NewEditWorkoutForm(m.client, msg.session, opts)
+		m.overlay = ef
+		return m, ef.Init()
+
 	case common.WorkoutLoggedMsg:
 		return m, tea.Batch(loadSessions(m.client), loadStats(m.client))
 
@@ -234,11 +255,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, lf.Init()
 		case "e":
 			if sess, ok := m.selectedSession(); ok {
-				exes, _ := m.client.GetAllExercises(false)
-				opts := forms.ExerciseOptions(exes)
-				ef := forms.NewEditWorkoutForm(m.client, sess, opts)
-				m.overlay = ef
-				return m, ef.Init()
+				return m, loadExercisesForEdit(m.client, sess)
 			}
 		case "D":
 			if sess, ok := m.selectedSession(); ok {

@@ -20,27 +20,47 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jasonlotz/groundwork-tui/internal/model"
 )
 
-// debugLog writes a message to ~/.cache/groundwork-tui/debug.log.
-// Errors opening/writing the file are silently ignored so they never
+// debugLogger is initialized once on first use and writes to
+// ~/.cache/groundwork-tui/debug.log. A nil value means initialization
+// failed silently (e.g. no home dir), in which case debug logging is a no-op.
+var (
+	debugLogger     *log.Logger
+	debugLoggerOnce sync.Once
+)
+
+// initDebugLogger opens (or creates) the debug log file and sets debugLogger.
+// Called once via sync.Once. Errors are silently swallowed so they never
 // surface to the user.
-func debugLog(format string, args ...any) {
+func initDebugLogger() {
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		return
 	}
 	logDir := filepath.Join(dir, "groundwork-tui")
-	_ = os.MkdirAll(logDir, 0o700)
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
+		return
+	}
 	f, err := os.OpenFile(filepath.Join(logDir, "debug.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return
 	}
-	defer f.Close()
-	log.New(f, "", log.LstdFlags).Printf(format, args...)
+	// Note: f is intentionally never closed — it lives for the duration of the process.
+	debugLogger = log.New(f, "", log.LstdFlags)
+}
+
+// debugLog writes a message to ~/.cache/groundwork-tui/debug.log.
+// The log file is opened once on first use. Errors are silently ignored.
+func debugLog(format string, args ...any) {
+	debugLoggerOnce.Do(initDebugLogger)
+	if debugLogger != nil {
+		debugLogger.Printf(format, args...)
+	}
 }
 
 // Client is a typed tRPC HTTP client.
