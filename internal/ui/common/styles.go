@@ -386,3 +386,15 @@ func ValidateUnits(s string) error {
 func TodayString() string {
 	return time.Now().Format("2006-01-02")
 }
+
+// WeekStartKey returns the date of the most recent Monday (local time) as a
+// YYYY-MM-DD string. This matches the web app's getLocalWeekStartKey() and is
+// passed to tRPC procedures that need the client's local week boundary.
+func WeekStartKey() string {
+	now := time.Now()
+	// time.Weekday: Sun=0, Mon=1, …, Sat=6.
+	// Days since last Monday: (weekday + 6) % 7 (Mon→0, Tue→1, …, Sun→6).
+	daysBack := (int(now.Weekday()) + 6) % 7
+	monday := now.AddDate(0, 0, -daysBack)
+	return monday.Format("2006-01-02")
+}

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/jasonlotz/groundwork-tui/internal/model"
+	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
 )
 
 // debugLogger is initialized once on first use and writes to
@@ -253,9 +254,14 @@ func (c *Client) GetChartData() (*model.ChartData, error) {
 	return &out, nil
 }
 
+type getActiveMaterialsInput struct {
+	WeekStartKey string `json:"weekStartKey"`
+}
+
 // GetActiveMaterials calls dashboard.getActiveMaterials.
 func (c *Client) GetActiveMaterials() ([]model.ActiveMaterial, error) {
-	out, err := query[[]model.ActiveMaterial](c, "dashboard.getActiveMaterials", struct{}{})
+	input := getActiveMaterialsInput{WeekStartKey: common.WeekStartKey()}
+	out, err := query[[]model.ActiveMaterial](c, "dashboard.getActiveMaterials", input)
 	if err != nil {
 		return nil, err
 	}
@@ -349,12 +355,14 @@ func (c *Client) LogUnits(materialID, date string, units float64, notes *string)
 }
 
 type getCategoryDataInput struct {
-	CategoryID string `json:"categoryId"`
+	CategoryID   string `json:"categoryId"`
+	WeekStartKey string `json:"weekStartKey"`
 }
 
 // GetCategoryData calls dashboard.getCategoryData.
 func (c *Client) GetCategoryData(categoryID string) (*model.CategoryDetail, error) {
-	out, err := query[model.CategoryDetail](c, "dashboard.getCategoryData", getCategoryDataInput{CategoryID: categoryID})
+	input := getCategoryDataInput{CategoryID: categoryID, WeekStartKey: common.WeekStartKey()}
+	out, err := query[model.CategoryDetail](c, "dashboard.getCategoryData", input)
 	if err != nil {
 		return nil, err
 	}
@@ -362,12 +370,14 @@ func (c *Client) GetCategoryData(categoryID string) (*model.CategoryDetail, erro
 }
 
 type getSkillDataInput struct {
-	SkillID string `json:"skillId"`
+	SkillID      string `json:"skillId"`
+	WeekStartKey string `json:"weekStartKey"`
 }
 
 // GetSkillData calls dashboard.getSkillData.
 func (c *Client) GetSkillData(skillID string) (*model.SkillDetail, error) {
-	out, err := query[model.SkillDetail](c, "dashboard.getSkillData", getSkillDataInput{SkillID: skillID})
+	input := getSkillDataInput{SkillID: skillID, WeekStartKey: common.WeekStartKey()}
+	out, err := query[model.SkillDetail](c, "dashboard.getSkillData", input)
 	if err != nil {
 		return nil, err
 	}
@@ -375,12 +385,14 @@ func (c *Client) GetSkillData(skillID string) (*model.SkillDetail, error) {
 }
 
 type getMaterialDetailInput struct {
-	MaterialID string `json:"materialId"`
+	MaterialID   string `json:"materialId"`
+	WeekStartKey string `json:"weekStartKey"`
 }
 
 // GetMaterialDetail calls dashboard.getMaterialDetail.
 func (c *Client) GetMaterialDetail(materialID string) (*model.MaterialDetail, error) {
-	out, err := query[model.MaterialDetail](c, "dashboard.getMaterialDetail", getMaterialDetailInput{MaterialID: materialID})
+	input := getMaterialDetailInput{MaterialID: materialID, WeekStartKey: common.WeekStartKey()}
+	out, err := query[model.MaterialDetail](c, "dashboard.getMaterialDetail", input)
 	if err != nil {
 		return nil, err
 	}
@@ -867,9 +879,14 @@ func (c *Client) SetWorkoutGoal(workoutType string, sessionsPerWeek int) error {
 	return err
 }
 
+type getWorkoutStatsInput struct {
+	WeekStartKey string `json:"weekStartKey,omitempty"`
+}
+
 // GetWorkoutStats calls workout.getStats.
 func (c *Client) GetWorkoutStats() (*model.WorkoutStats, error) {
-	out, err := query[model.WorkoutStats](c, "workout.getStats", struct{}{})
+	input := getWorkoutStatsInput{WeekStartKey: common.WeekStartKey()}
+	out, err := query[model.WorkoutStats](c, "workout.getStats", input)
 	if err != nil {
 		return nil, err
 	}
