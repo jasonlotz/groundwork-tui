@@ -65,12 +65,12 @@ internal/
       app.go             — root model; owns navigation stack + all screen models
     common/
       styles.go          — all Lip Gloss styles + shared helpers (RenderTitle, RenderBar, etc.)
-      messages.go        — cross-cutting message types: GoBackMsg, ToastMsg, ErrMsg, MaterialChangedMsg, LearningLoggedMsg, WorkoutLoggedMsg, ExerciseChangedMsg, SubtypeChangedMsg, etc.
+      messages.go        — cross-cutting message types: GoBackMsg, ToastMsg, ErrMsg, MaterialChangedMsg, LearningLoggedMsg, WorkoutLoggedMsg, ExerciseChangedMsg, SubtypeChangedMsg, HabitChangedMsg, etc.
       tailwind.go        — maps Tailwind color class strings to terminal hex colors
       spinner.go         — pre-configured spinner
       help.go            — pre-configured help bar
       keys.go            — key binding helpers
-      tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen; tabs: d=Dashboard c=Categories s=Skills m=Materials f=Fitness a=Activity i=Settings
+      tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen; tabs: d=Dashboard c=Categories s=Skills m=Materials f=Fitness h=Habits v=Activity i=Settings
     forms/
       category_form.go   — CategoryForm, CategoryFormDoneMsg, NewCategoryCreateForm, NewCategoryEditForm
       skill_form.go      — SkillForm, SkillFormDoneMsg, NewSkillCreateFormWithCategories, NewSkillEditForm
@@ -79,6 +79,7 @@ internal/
       log_form.go        — LogForm, LogDoneMsg, NewLogForm
       log_workout_form.go — LogWorkoutForm, WorkoutLogDoneMsg, NewLogWorkoutForm(client); multi-step: type → subtype → details → row editor (lifts or cardio segments with zone/distance/duration/elevation/steps)
       edit_workout_form.go — EditWorkoutForm, NewEditWorkoutForm(client, session, exercises, subtypes); subtype → details → row editor
+      habit_form.go      — HabitForm, HabitFormDoneMsg, NewHabitCreateForm, NewHabitEditForm
       colors.go          — shared colorOptions + ActiveTheme var + UpdateHuhForm helper (exported)
     setup/
       setup.go           — first-run wizard (Huh form for base URL + API key)
@@ -100,6 +101,8 @@ internal/
       category_detail.go — DetailModel, NewDetail(): single category skills list
     fitness/
       fitness.go         — single sessions list with type filter (All/Lifting/Cardio); KPI cards (lifting/wk, cardio/wk, total/wk); w=log workout, e=edit, D=delete
+    habits/
+      habits.go          — habits list with 30-day ASCII heatmaps and today toggle; KPI cards (active, done today, streak); n=new, e=edit, D=delete, a=toggle active, enter=toggle today
 ```
 
 ---

@@ -41,3 +41,6 @@ type ExerciseChangedMsg struct{}
 
 // SubtypeChangedMsg is broadcast after a workout subtype is created, updated, archived, or deleted.
 type SubtypeChangedMsg struct{}
+
+// HabitChangedMsg is broadcast after any habit is created, updated, toggled, or deleted.
+type HabitChangedMsg struct{}

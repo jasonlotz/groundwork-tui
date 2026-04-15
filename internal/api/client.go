@@ -991,6 +991,119 @@ func (c *Client) GetCardioProgress(subtypeID *string) (model.CardioProgress, err
 	return query[model.CardioProgress](c, "workout.getCardioProgress", getCardioProgressInput{SubtypeID: subtypeID})
 }
 
+// --- habit procedures ---
+
+type habitGetAllInput struct {
+	Status *string `json:"status,omitempty"`
+}
+
+// GetAllHabits calls habit.getAll with an optional status filter.
+func (c *Client) GetAllHabits(status *string) ([]model.Habit, error) {
+	out, err := query[[]model.Habit](c, "habit.getAll", habitGetAllInput{Status: status})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetHabitStats calls habit.getStats.
+func (c *Client) GetHabitStats() (*model.HabitStats, error) {
+	out, err := query[model.HabitStats](c, "habit.getStats", struct{}{})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetActiveHabitsWithTodayStatus calls habit.getActiveWithTodayStatus.
+func (c *Client) GetActiveHabitsWithTodayStatus() ([]model.ActiveHabitStatus, error) {
+	return query[[]model.ActiveHabitStatus](c, "habit.getActiveWithTodayStatus", struct{}{})
+}
+
+type habitHeatmapInput struct {
+	HabitID string `json:"habitId"`
+}
+
+// GetHabitHeatmapData calls habit.getHeatmapData.
+func (c *Client) GetHabitHeatmapData(habitID string) ([]model.HeatmapEntry, error) {
+	return query[[]model.HeatmapEntry](c, "habit.getHeatmapData", habitHeatmapInput{HabitID: habitID})
+}
+
+type habitCreateInput struct {
+	Name      string  `json:"name"`
+	StartDate string  `json:"startDate"`
+	EndDate   *string `json:"endDate,omitempty"`
+}
+
+// CreateHabit calls habit.create.
+func (c *Client) CreateHabit(name, startDate string, endDate *string) error {
+	input := habitCreateInput{
+		Name:      name,
+		StartDate: startDate + "T00:00:00.000Z",
+	}
+	datePaths := []string{"startDate"}
+	if endDate != nil {
+		s := *endDate + "T00:00:00.000Z"
+		input.EndDate = &s
+		datePaths = append(datePaths, "endDate")
+	}
+	_, err := mutationWithMeta[struct{}](c, "habit.create", superJSONDates(input, datePaths...))
+	return err
+}
+
+type habitUpdateInput struct {
+	ID        string  `json:"id"`
+	Name      *string `json:"name,omitempty"`
+	StartDate *string `json:"startDate,omitempty"`
+	EndDate   *string `json:"endDate,omitempty"`
+}
+
+// UpdateHabit calls habit.update.
+func (c *Client) UpdateHabit(id string, name *string, startDate *string, endDate *string) error {
+	input := habitUpdateInput{ID: id, Name: name}
+	var datePaths []string
+	if startDate != nil {
+		s := *startDate + "T00:00:00.000Z"
+		input.StartDate = &s
+		datePaths = append(datePaths, "startDate")
+	}
+	if endDate != nil {
+		s := *endDate + "T00:00:00.000Z"
+		input.EndDate = &s
+		datePaths = append(datePaths, "endDate")
+	}
+	_, err := mutationWithMeta[struct{}](c, "habit.update", superJSONDates(input, datePaths...))
+	return err
+}
+
+type habitIDInput struct {
+	ID string `json:"id"`
+}
+
+// DeleteHabit calls habit.delete.
+func (c *Client) DeleteHabit(id string) error {
+	_, err := mutation[struct{}](c, "habit.delete", habitIDInput{ID: id})
+	return err
+}
+
+type habitToggleLogInput struct {
+	HabitID string `json:"habitId"`
+	Date    string `json:"date"`
+}
+
+// ToggleHabitLog calls habit.toggleLog.
+func (c *Client) ToggleHabitLog(habitID, date string) (*model.ToggleLogResult, error) {
+	input := habitToggleLogInput{
+		HabitID: habitID,
+		Date:    date + "T00:00:00.000Z",
+	}
+	out, err := mutationWithMeta[model.ToggleLogResult](c, "habit.toggleLog", superJSONDates(input, "date"))
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // --- workout update ---
 
 // UpdateLiftSessionInput holds the fields needed to update a lifting session.

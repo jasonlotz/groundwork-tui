@@ -13,8 +13,9 @@ const (
 	TabSkills     = 2
 	TabMaterials  = 3
 	TabFitness    = 4
-	TabActivity   = 5
-	TabSettings   = 6
+	TabHabits     = 5
+	TabActivity   = 6
+	TabSettings   = 7
 )
 
 // tabDef describes one tab entry.
@@ -30,7 +31,8 @@ var tabDefs = []tabDef{
 	{"s", "", "kills"},
 	{"m", "", "aterials"},
 	{"f", "", "itness"},
-	{"a", "", "ctivity"},
+	{"h", "", "abits"},
+	{"v", "Acti", "ity"},
 	{"i", "Sett", "ngs"},
 }
 

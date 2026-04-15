@@ -85,8 +85,10 @@ To reconfigure, delete the config file and relaunch.
 | `c` | Categories tab |
 | `s` | Skills tab     |
 | `m` | Materials tab  |
-| `p` | Progress tab   |
-| `t` | Theme tab      |
+| `f` | Fitness tab    |
+| `h` | Habits tab     |
+| `v` | Activity tab   |
+| `i` | Settings tab   |
 | `q` | Quit           |
 
 ### Dashboard
@@ -164,6 +166,19 @@ To reconfigure, delete the config file and relaunch.
 | `D`         | Delete selected skill (must be archived) |
 | `r`         | Refresh                                  |
 | `esc` / `q` | Back                                     |
+
+### Habits
+
+| Key         | Action                    |
+| ----------- | ------------------------- |
+| `j` / `k`   | Navigate                  |
+| `enter`     | Toggle today's log        |
+| `n`         | New habit                 |
+| `e`         | Edit selected habit       |
+| `D`         | Delete selected habit     |
+| `a`         | Toggle active-only filter |
+| `r`         | Refresh                   |
+| `esc` / `q` | Back                      |
 
 ### All other screens
 

@@ -515,3 +515,49 @@ type CardioProgressEntry struct {
 
 // CardioProgress is the cardio distance/pace history — the server returns a plain array.
 type CardioProgress = []CardioProgressEntry
+
+// --- habits ---
+
+// Habit mirrors the habit.getAll response shape.
+type Habit struct {
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	StartDate SuperJSONDate  `json:"startDate"`
+	EndDate   *SuperJSONDate `json:"endDate"`
+	Status    string         `json:"status"` // "ACTIVE" or "INACTIVE"
+	Count     HabitCount     `json:"_count"`
+}
+
+// HabitCount holds the habit log count from the _count relation.
+type HabitCount struct {
+	HabitLogs int `json:"habitLogs"`
+}
+
+// HabitLogCount convenience accessor.
+func (h Habit) LogCount() int { return h.Count.HabitLogs }
+
+// HeatmapEntry is one day in the heatmap data returned by habit.getHeatmapData.
+type HeatmapEntry struct {
+	Date  string `json:"date"`
+	Count int    `json:"count"`
+}
+
+// HabitStats holds aggregate habit statistics from habit.getStats.
+type HabitStats struct {
+	ActiveCount   int `json:"activeCount"`
+	DoneToday     int `json:"doneToday"`
+	CurrentStreak int `json:"currentStreak"`
+	BestStreak    int `json:"bestStreak"`
+}
+
+// ActiveHabitStatus is returned by habit.getActiveWithTodayStatus.
+type ActiveHabitStatus struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	LoggedToday bool   `json:"loggedToday"`
+}
+
+// ToggleLogResult is the response from habit.toggleLog.
+type ToggleLogResult struct {
+	Logged bool `json:"logged"`
+}
