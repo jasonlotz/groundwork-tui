@@ -70,7 +70,7 @@ internal/
       spinner.go         — pre-configured spinner
       help.go            — pre-configured help bar
       keys.go            — key binding helpers
-      tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen; tabs: d=Dashboard c=Categories s=Skills m=Materials f=Fitness h=Habits v=Activity i=Settings
+      tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen; tabs: d=Dashboard c=Categories s=Skills m=Materials f=Fitness h=Habits a=Activity i=Settings
     forms/
       category_form.go   — CategoryForm, CategoryFormDoneMsg, NewCategoryCreateForm, NewCategoryEditForm
       skill_form.go      — SkillForm, SkillFormDoneMsg, NewSkillCreateFormWithCategories, NewSkillEditForm

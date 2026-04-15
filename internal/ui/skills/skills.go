@@ -67,7 +67,7 @@ func buildKeys(isArchived bool, showArchived bool) common.SimpleKeyMap {
 	}
 	bindings = append(bindings,
 		common.KB("D", "delete (archived)"),
-		common.KB("a", archivedLabel),
+		common.KB("t", archivedLabel),
 		common.KB("r", "refresh"),
 		common.KB("esc", "back"),
 	)
@@ -233,7 +233,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.overlay = f
 				return m, f.Init()
 			}
-		case "a":
+		case "t":
 			m.showArchived = !m.showArchived
 			m.loading = true
 			m.err = nil

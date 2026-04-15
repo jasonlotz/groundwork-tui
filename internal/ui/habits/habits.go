@@ -54,10 +54,10 @@ func New(client *api.Client) Model {
 		keys: common.SimpleKeyMap{Bindings: []common.Binding{
 			common.KBKeys("j/k", "navigate", "j", "k", "down", "up"),
 			common.KB("enter", "toggle today"),
-			common.KB("n", "new habit"),
+			common.KB("n", "new"),
 			common.KB("e", "edit"),
 			common.KB("D", "delete"),
-			common.KB("a", "toggle active"),
+			common.KB("t", "toggle active"),
 			common.KB("r", "refresh"),
 			common.KB("esc", "back"),
 		}},
@@ -187,7 +187,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "a":
+		case "t":
 			m.activeOnly = !m.activeOnly
 			m.loading = true
 			m.cursor = 0

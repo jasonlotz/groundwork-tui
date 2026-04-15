@@ -353,7 +353,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.switchTab(screenMaterials)
 		case "s":
 			return m.switchTab(screenSkills)
-		case "v":
+		case "a":
 			return m.switchTab(screenActivity)
 		case "c":
 			return m.switchTab(screenCategories)

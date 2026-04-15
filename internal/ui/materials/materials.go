@@ -69,7 +69,7 @@ func New(client *api.Client) Model {
 			common.KB("n", "new"),
 			common.KB("e", "edit"),
 			common.KB("D", "delete"),
-			common.KB("a", "toggle active"),
+			common.KB("t", "toggle active"),
 			common.KB("/", "search"),
 			common.KB("r", "refresh"),
 			common.KB("esc", "back"),
@@ -240,7 +240,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.searching = true
 			m.searchInput.Focus()
 			return m, textinput.Blink
-		case "a":
+		case "t":
 			m.activeOnly = !m.activeOnly
 			m.loading = true
 			m.cursor = 0

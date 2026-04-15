@@ -32,7 +32,7 @@ var tabDefs = []tabDef{
 	{"m", "", "aterials"},
 	{"f", "", "itness"},
 	{"h", "", "abits"},
-	{"v", "Acti", "ity"},
+	{"a", "", "ctivity"},
 	{"i", "Sett", "ngs"},
 }
 

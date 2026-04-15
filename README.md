@@ -87,7 +87,7 @@ To reconfigure, delete the config file and relaunch.
 | `m` | Materials tab  |
 | `f` | Fitness tab    |
 | `h` | Habits tab     |
-| `v` | Activity tab   |
+| `a` | Activity tab   |
 | `i` | Settings tab   |
 | `q` | Quit           |
 
@@ -110,7 +110,7 @@ To reconfigure, delete the config file and relaunch.
 | `n`         | New material                  |
 | `e`         | Edit selected material        |
 | `D`         | Delete selected material      |
-| `a`         | Toggle active-only filter     |
+| `t`         | Toggle active-only filter     |
 | `/`         | Search by name, skill, type   |
 | `r`         | Refresh                       |
 | `esc` / `q` | Back                          |
@@ -136,7 +136,7 @@ To reconfigure, delete the config file and relaunch.
 | `e`         | Edit selected category                      |
 | `A`         | Archive / unarchive selected category       |
 | `D`         | Delete selected category (must be archived) |
-| `a`         | Toggle show/hide archived                   |
+| `t`         | Toggle show/hide archived                   |
 | `r`         | Refresh                                     |
 | `esc` / `q` | Back                                        |
 
@@ -150,7 +150,7 @@ To reconfigure, delete the config file and relaunch.
 | `e`         | Edit selected skill                      |
 | `A`         | Archive / unarchive selected skill       |
 | `D`         | Delete selected skill (must be archived) |
-| `a`         | Toggle show/hide archived                |
+| `t`         | Toggle show/hide archived                |
 | `r`         | Refresh                                  |
 | `esc` / `q` | Back                                     |
 
@@ -176,7 +176,7 @@ To reconfigure, delete the config file and relaunch.
 | `n`         | New habit                 |
 | `e`         | Edit selected habit       |
 | `D`         | Delete selected habit     |
-| `a`         | Toggle active-only filter |
+| `t`         | Toggle active-only filter |
 | `r`         | Refresh                   |
 | `esc` / `q` | Back                      |
 
