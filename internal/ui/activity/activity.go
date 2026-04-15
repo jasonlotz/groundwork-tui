@@ -24,7 +24,7 @@ type entryKind int
 const (
 	kindLearning entryKind = iota
 	kindLifting
-	kindRunning
+	kindCardio
 )
 
 // activityEntry is a unified row for the merged activity list.
@@ -45,10 +45,10 @@ const (
 	filterAll      typeFilter = iota // 0
 	filterLearning                   // 1
 	filterLifting                    // 2
-	filterRunning                    // 3
+	filterCardio                     // 3
 )
 
-var filterLabels = []string{"All", "Learning", "Lifting", "Running"}
+var filterLabels = []string{"All", "Learning", "Lifting", "Cardio"}
 
 // --- internal messages ---
 
@@ -161,19 +161,26 @@ func (m *Model) rebuild() {
 	for _, s := range m.sessions {
 		var kind entryKind
 		var detail string
-		if s.Type == model.WorkoutTypeRunning {
-			kind = kindRunning
-			if s.DurationMinutes != nil {
-				detail = fmt.Sprintf("Run — %d min", *s.DurationMinutes)
+		subName := s.SubtypeName()
+		if s.Type == model.WorkoutTypeCardio {
+			kind = kindCardio
+			if subName != "" {
+				detail = subName
 			} else {
-				detail = "Run"
+				detail = "Cardio"
+			}
+			if s.DurationMinutes != nil {
+				detail += fmt.Sprintf(" — %d min", *s.DurationMinutes)
 			}
 		} else {
 			kind = kindLifting
-			if s.DurationMinutes != nil {
-				detail = fmt.Sprintf("Lift — %d min", *s.DurationMinutes)
+			if subName != "" {
+				detail = subName
 			} else {
 				detail = "Lift"
+			}
+			if s.DurationMinutes != nil {
+				detail += fmt.Sprintf(" — %d min", *s.DurationMinutes)
 			}
 		}
 		notes := ""
@@ -216,10 +223,10 @@ func (m *Model) rebuild() {
 			}
 		}
 		m.entries = filtered
-	case filterRunning:
+	case filterCardio:
 		filtered := all[:0]
 		for _, e := range all {
-			if e.kind == kindRunning {
+			if e.kind == kindCardio {
 				filtered = append(filtered, e)
 			}
 		}
@@ -324,7 +331,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = 0
 			m.rebuild()
 		case "4":
-			m.filter = filterRunning
+			m.filter = filterCardio
 			m.cursor = 0
 			m.rebuild()
 		case "r":
@@ -367,7 +374,7 @@ func (m Model) View() string {
 	b.WriteString(common.RenderTitle("Activity Log", m.width))
 	b.WriteString("\n")
 
-	// Filter bar: [1 All] [2 Learning] [3 Lifting] [4 Running]
+	// Filter bar: [1 All] [2 Learning] [3 Lifting] [4 Cardio]
 	b.WriteString(renderFilterBar(m.filter, m.width))
 	b.WriteString("\n")
 
@@ -437,15 +444,15 @@ func kindLabel(k entryKind) string {
 		return "Learning"
 	case kindLifting:
 		return "Lifting"
-	case kindRunning:
-		return "Running"
+	case kindCardio:
+		return "Cardio"
 	}
 	return ""
 }
 
 // renderFilterBar draws the filter strip.
 func renderFilterBar(active typeFilter, width int) string {
-	labels := []string{"1:All", "2:Learning", "3:Lifting", "4:Running"}
+	labels := []string{"1:All", "2:Learning", "3:Lifting", "4:Cardio"}
 	var parts []string
 	for i, label := range labels {
 		if typeFilter(i) == active {

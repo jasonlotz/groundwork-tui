@@ -1,6 +1,6 @@
 // Package fitness provides the fitness tracker TUI screen.
 // A single sessions list replaces the old sub-tab system.
-// Press t to cycle the type filter: All → Lifting → Running → All.
+// Press / to cycle the type filter: All → Lifting → Cardio → All.
 package fitness
 
 import (
@@ -24,15 +24,15 @@ type filterMode int
 const (
 	filterAll     filterMode = 0
 	filterLifting filterMode = 1
-	filterRunning filterMode = 2
+	filterCardio  filterMode = 2
 )
 
 func (f filterMode) Label() string {
 	switch f {
 	case filterLifting:
 		return "Lifting"
-	case filterRunning:
-		return "Running"
+	case filterCardio:
+		return "Cardio"
 	default:
 		return "All"
 	}
@@ -43,7 +43,7 @@ func (f filterMode) next() filterMode {
 	case filterAll:
 		return filterLifting
 	case filterLifting:
-		return filterRunning
+		return filterCardio
 	default:
 		return filterAll
 	}
@@ -56,10 +56,11 @@ type fitnessStatsLoadedMsg struct {
 	goals []model.WorkoutGoal
 }
 
-// fitnessExercisesLoadedMsg carries exercises fetched asynchronously for the edit form.
-type fitnessExercisesLoadedMsg struct {
+// fitnessEditDataLoadedMsg carries exercises and subtypes fetched asynchronously for the edit form.
+type fitnessEditDataLoadedMsg struct {
 	session   model.WorkoutSession
 	exercises []model.Exercise
+	subtypes  []model.WorkoutSubtype
 }
 
 // Model is the root Bubble Tea model for the fitness screen.
@@ -130,12 +131,14 @@ func loadStats(c *api.Client) tea.Cmd {
 	}
 }
 
-// loadExercisesForEdit fetches exercises off the UI goroutine so the edit form
+// loadEditData fetches exercises and subtypes off the UI goroutine so the edit form
 // can be pre-populated without blocking rendering.
-func loadExercisesForEdit(c *api.Client, sess model.WorkoutSession) tea.Cmd {
+func loadEditData(c *api.Client, sess model.WorkoutSession) tea.Cmd {
 	return func() tea.Msg {
 		exercises, _ := c.GetAllExercises(false)
-		return fitnessExercisesLoadedMsg{session: sess, exercises: exercises}
+		wt := string(sess.Type)
+		subtypes, _ := c.GetAllSubtypes(&wt, false)
+		return fitnessEditDataLoadedMsg{session: sess, exercises: exercises, subtypes: subtypes}
 	}
 }
 
@@ -147,8 +150,8 @@ func (m *Model) applyFilter() {
 		return
 	}
 	wt := model.WorkoutTypeLifting
-	if m.filter == filterRunning {
-		wt = model.WorkoutTypeRunning
+	if m.filter == filterCardio {
+		wt = model.WorkoutTypeCardio
 	}
 	out := make([]model.WorkoutSession, 0, len(m.sessions))
 	for _, s := range m.sessions {
@@ -210,9 +213,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stats = msg.stats
 		m.goals = msg.goals
 
-	case fitnessExercisesLoadedMsg:
+	case fitnessEditDataLoadedMsg:
 		opts := forms.ExerciseOptions(msg.exercises)
-		ef := forms.NewEditWorkoutForm(m.client, msg.session, opts)
+		stOpts := forms.SubtypeOptions(msg.subtypes)
+		ef := forms.NewEditWorkoutForm(m.client, msg.session, opts, stOpts)
 		m.overlay = ef
 		return m, ef.Init()
 
@@ -255,7 +259,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, lf.Init()
 		case "e":
 			if sess, ok := m.selectedSession(); ok {
-				return m, loadExercisesForEdit(m.client, sess)
+				return m, loadEditData(m.client, sess)
 			}
 		case "D":
 			if sess, ok := m.selectedSession(); ok {
@@ -318,7 +322,7 @@ func (m Model) View() string {
 	start, end := common.VisibleWindow(m.cursor, len(m.filtered), visibleRows)
 	selectedIdx := m.cursor - start
 
-	// Columns: Date | Type (when showing all) | Duration | Details | Notes
+	// Columns: Date | Type (when showing all) | Subtype | Duration | Details | Notes
 	showType := m.filter == filterAll
 
 	rows := make([][]string, end-start)
@@ -332,19 +336,20 @@ func (m Model) View() string {
 		if s.Notes != nil {
 			notes = common.Truncate(*s.Notes, 25)
 		}
-		details := common.Truncate(s.Details, 40)
+		details := common.Truncate(s.Details, 35)
+		subtype := s.SubtypeName()
 		if showType {
-			rows[i-start] = []string{s.Date.Value, titleCase(string(s.Type)), dur, details, notes}
+			rows[i-start] = []string{s.Date.Value, common.TitleCase(string(s.Type)), subtype, dur, details, notes}
 		} else {
-			rows[i-start] = []string{s.Date.Value, dur, details, notes}
+			rows[i-start] = []string{s.Date.Value, subtype, dur, details, notes}
 		}
 	}
 
 	var t *table.Table
 	if showType {
-		t = table.New().Headers("Date", "Type", "Duration", "Details", "Notes")
+		t = table.New().Headers("Date", "Type", "Subtype", "Duration", "Details", "Notes")
 	} else {
-		t = table.New().Headers("Date", "Duration", "Details", "Notes")
+		t = table.New().Headers("Date", "Subtype", "Duration", "Details", "Notes")
 	}
 	t = t.Rows(rows...).
 		Border(lipgloss.HiddenBorder()).
@@ -380,12 +385,12 @@ func (m Model) View() string {
 }
 
 func (m Model) renderKPIs() string {
-	liftGoal, runGoal := 0, 0
+	liftGoal, cardioGoal := 0, 0
 	for _, g := range m.goals {
 		if g.Type == model.WorkoutTypeLifting {
 			liftGoal = g.SessionsPerWeek
-		} else if g.Type == model.WorkoutTypeRunning {
-			runGoal = g.SessionsPerWeek
+		} else if g.Type == model.WorkoutTypeCardio {
+			cardioGoal = g.SessionsPerWeek
 		}
 	}
 
@@ -393,15 +398,15 @@ func (m Model) renderKPIs() string {
 	if liftGoal > 0 {
 		liftLabel = fmt.Sprintf("%d / %d", m.stats.LiftingThisWeek, liftGoal)
 	}
-	runLabel := fmt.Sprintf("%d", m.stats.RunningThisWeek)
-	if runGoal > 0 {
-		runLabel = fmt.Sprintf("%d / %d", m.stats.RunningThisWeek, runGoal)
+	cardioLabel := fmt.Sprintf("%d", m.stats.CardioThisWeek)
+	if cardioGoal > 0 {
+		cardioLabel = fmt.Sprintf("%d / %d", m.stats.CardioThisWeek, cardioGoal)
 	}
-	total := m.stats.LiftingThisWeek + m.stats.RunningThisWeek
+	total := m.stats.LiftingThisWeek + m.stats.CardioThisWeek
 
 	cards := []string{
 		common.StatCard("Lifting/wk", liftLabel),
-		common.StatCard("Running/wk", runLabel),
+		common.StatCard("Cardio/wk", cardioLabel),
 		common.StatCard("Total/wk", fmt.Sprintf("%d", total)),
 	}
 	return common.RenderKPICards(cards)
@@ -417,10 +422,3 @@ func deleteSession(c *api.Client, id string) tea.Cmd {
 	}
 }
 
-// titleCase converts "LIFTING" → "Lifting", "RUNNING" → "Running".
-func titleCase(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + strings.ToLower(s[1:])
-}

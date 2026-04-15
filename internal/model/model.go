@@ -376,20 +376,29 @@ type WorkoutType string
 
 const (
 	WorkoutTypeLifting WorkoutType = "LIFTING"
-	WorkoutTypeRunning WorkoutType = "RUNNING"
+	WorkoutTypeCardio  WorkoutType = "CARDIO"
 )
 
-// RunZone mirrors the Prisma RunZone enum.
-type RunZone string
+// CardioZone mirrors the Prisma CardioZone enum.
+type CardioZone string
 
 const (
-	RunZoneZ1   RunZone = "Z1"
-	RunZoneZ2   RunZone = "Z2"
-	RunZoneZ3   RunZone = "Z3"
-	RunZoneZ4   RunZone = "Z4"
-	RunZoneZ5   RunZone = "Z5"
-	RunZoneFree RunZone = "FREE"
+	CardioZoneZ1   CardioZone = "Z1"
+	CardioZoneZ2   CardioZone = "Z2"
+	CardioZoneZ3   CardioZone = "Z3"
+	CardioZoneZ4   CardioZone = "Z4"
+	CardioZoneZ5   CardioZone = "Z5"
+	CardioZoneFree CardioZone = "FREE"
 )
+
+// WorkoutSubtype is a user-defined subtype (e.g. "Running", "Hiking", "Leg Day").
+type WorkoutSubtype struct {
+	ID         string      `json:"id"`
+	Name       string      `json:"name"`
+	Type       WorkoutType `json:"type"`
+	IsArchived bool        `json:"isArchived"`
+	Priority   int         `json:"priority"`
+}
 
 // Exercise is a per-user lift exercise.
 type Exercise struct {
@@ -408,32 +417,50 @@ type SessionLiftEntry struct {
 	WeightLbs float64 `json:"weightLbs"`
 }
 
-// SessionRunSegment is a single segment within a run returned by getSessions.
-type SessionRunSegment struct {
-	Zone            string  `json:"zone"`
-	DistanceMiles   float64 `json:"distanceMiles"`
-	DurationSeconds int     `json:"durationSeconds"`
+// SessionCardioSegment is a single segment within a cardio session returned by getSessions.
+type SessionCardioSegment struct {
+	Zone            string   `json:"zone"`
+	DistanceMiles   *float64 `json:"distanceMiles"`
+	DurationSeconds int      `json:"durationSeconds"`
+	ElevationGainFt *float64 `json:"elevationGainFt"`
+	Steps           *int     `json:"steps"`
 }
 
-// SessionRunEntry is the run-specific data returned inline by getSessions.
-type SessionRunEntry struct {
-	Segments []SessionRunSegment `json:"segments"`
+// SessionCardioEntry is the cardio-specific data returned inline by getSessions.
+type SessionCardioEntry struct {
+	Segments []SessionCardioSegment `json:"segments"`
 }
 
-// WorkoutSession is a single workout session (lift or run).
-// LiftEntries and RunEntry are populated from the getSessions response and used
+// SessionSubtype is the subtype relation included in session responses.
+type SessionSubtype struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// WorkoutSession is a single workout session (lift or cardio).
+// LiftEntries and CardioEntry are populated from the getSessions response and used
 // to format the Details string and to pre-populate the edit form.
 type WorkoutSession struct {
-	ID              string             `json:"id"`
-	Type            WorkoutType        `json:"type"`
-	Date            SuperJSONDate      `json:"date"`
-	DurationMinutes *int               `json:"durationMinutes"`
-	Notes           *string            `json:"notes"`
-	LiftEntries     []SessionLiftEntry `json:"liftEntries"`
-	RunEntry        *SessionRunEntry   `json:"runEntry"`
+	ID              string               `json:"id"`
+	Type            WorkoutType          `json:"type"`
+	SubtypeID       string               `json:"subtypeId"`
+	Subtype         *SessionSubtype      `json:"subtype"`
+	Date            SuperJSONDate        `json:"date"`
+	DurationMinutes *int                 `json:"durationMinutes"`
+	Notes           *string              `json:"notes"`
+	LiftEntries     []SessionLiftEntry   `json:"liftEntries"`
+	CardioEntry     *SessionCardioEntry  `json:"cardioEntry"`
 	// Details is a pre-formatted summary string computed client-side.
 	// Not part of the JSON response — populated by the API client after parsing.
 	Details string `json:"-"`
+}
+
+// SubtypeName returns the subtype name or empty string.
+func (s WorkoutSession) SubtypeName() string {
+	if s.Subtype != nil {
+		return s.Subtype.Name
+	}
+	return ""
 }
 
 // LiftRecord is one exercise+weight entry within a lifting session.
@@ -443,27 +470,13 @@ type LiftRecord struct {
 	WeightLbs    float64 `json:"weightLbs"`
 }
 
-// RunZonePace is the computed pace for a run zone.
-type RunZonePace struct {
-	Zone        RunZone `json:"zone"`
-	PaceSeconds int     `json:"paceSeconds"`
-}
-
-// RunEntryDetail is the run-specific data embedded in a WorkoutSessionDetail.
-type RunEntryDetail struct {
-	DistanceMiles   float64       `json:"distanceMiles"`
-	DurationSeconds int           `json:"durationSeconds"`
-	ZonePaces       []RunZonePace `json:"zonePaces"`
-}
-
-// WorkoutSessionDetail embeds WorkoutSession with lift/run specifics.
+// WorkoutSessionDetail embeds WorkoutSession with lift specifics.
 type WorkoutSessionDetail struct {
 	WorkoutSession
-	LiftRecords []LiftRecord    `json:"liftRecords"`
-	RunEntry    *RunEntryDetail `json:"runEntry"`
+	LiftRecords []LiftRecord `json:"liftRecords"`
 }
 
-// WorkoutGoal is one goal entry (lifting or running sessions per week).
+// WorkoutGoal is one goal entry (lifting or cardio sessions per week).
 type WorkoutGoal struct {
 	Type            WorkoutType `json:"type"`
 	SessionsPerWeek int         `json:"sessionsPerWeek"`
@@ -472,11 +485,8 @@ type WorkoutGoal struct {
 // WorkoutStats holds the aggregated workout stats for the current week.
 type WorkoutStats struct {
 	LiftingThisWeek int `json:"thisWeekLiftSessions"`
-	RunningThisWeek int `json:"thisWeekRunSessions"`
-	LiftingGoal     int `json:"liftingGoal"`   // filled client-side from goals
-	RunningGoal     int `json:"runningGoal"`   // filled client-side from goals
-	LiftingStreak   int `json:"liftingStreak"` // not yet in API — reserved
-	RunningStreak   int `json:"runningStreak"` // not yet in API — reserved
+	CardioThisWeek  int `json:"thisWeekCardioSessions"`
+	Streak          int `json:"streak"`
 }
 
 // LiftProgressEntry is one data point in a per-exercise weight-over-time series.
@@ -492,13 +502,16 @@ type LiftProgress struct {
 	Entries      []LiftProgressEntry `json:"entries"`
 }
 
-// RunProgressEntry is one data point in the run distance/pace history.
-type RunProgressEntry struct {
-	Date            SuperJSONDate `json:"date"`
-	DistanceMiles   float64       `json:"distanceMiles"`
-	DurationSeconds int           `json:"durationSeconds"`
-	PaceSeconds     int           `json:"paceSecondsPerMile"`
+// CardioProgressEntry is one data point in the cardio distance/pace history.
+type CardioProgressEntry struct {
+	Date            string   `json:"date"`
+	SubtypeName     *string  `json:"subtypeName"`
+	DistanceMiles   float64  `json:"distanceMiles"`
+	DurationSeconds int      `json:"durationSeconds"`
+	PaceSeconds     int      `json:"paceSecondsPerMile"`
+	ElevationGainFt float64  `json:"elevationGainFt"`
+	Steps           int      `json:"steps"`
 }
 
-// RunProgress is the run distance/pace history — the server returns a plain array.
-type RunProgress = []RunProgressEntry
+// CardioProgress is the cardio distance/pace history — the server returns a plain array.
+type CardioProgress = []CardioProgressEntry

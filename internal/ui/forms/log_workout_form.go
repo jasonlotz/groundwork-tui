@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jasonlotz/groundwork-tui/internal/api"
+	"github.com/jasonlotz/groundwork-tui/internal/model"
 	"github.com/jasonlotz/groundwork-tui/internal/ui/common"
 )
 
@@ -19,6 +20,13 @@ type WorkoutLogDoneMsg struct{ Cancelled bool }
 // ── exercise option ───────────────────────────────────────────────────────────
 
 type exerciseOption struct {
+	id   string
+	name string
+}
+
+// ── subtype option ────────────────────────────────────────────────────────────
+
+type subtypeOption struct {
 	id   string
 	name string
 }
@@ -210,48 +218,53 @@ func (e *liftEditor) toLiftEntries() []api.LiftEntry {
 	return out
 }
 
-// ── run segment editor ────────────────────────────────────────────────────────
+// ── cardio segment editor ───────────────────────────────────────────────────
 
-var runZones = []string{"FREE", "Z1", "Z2", "Z3", "Z4", "Z5"}
-var runZoneLabels = []string{"Free Run", "Zone 1", "Zone 2", "Zone 3", "Zone 4", "Zone 5"}
+var cardioZones = []string{"FREE", "Z1", "Z2", "Z3", "Z4", "Z5"}
+var cardioZoneLabels = []string{"Freestyle", "Zone 1", "Zone 2", "Zone 3", "Zone 4", "Zone 5"}
 
-type runSegRow struct {
-	zoneIdx     int // index into runZones
-	distanceStr string
-	durationStr string // mm:ss or plain minutes
+type cardioSegRow struct {
+	zoneIdx        int // index into cardioZones
+	distanceStr    string
+	durationStr    string // mm:ss or plain minutes
+	elevationStr   string // elevation gain in ft
+	stepsStr       string // steps count
 }
 
-// runCol constants
+// cardioCol constants
 const (
-	runColZone     = 0
-	runColDistance = 1
-	runColDuration = 2
+	cardioColZone      = 0
+	cardioColDistance   = 1
+	cardioColDuration  = 2
+	cardioColElevation = 3
+	cardioColSteps     = 4
+	cardioColCount     = 5
 )
 
-type runEditor struct {
-	rows      []runSegRow
+type cardioEditor struct {
+	rows      []cardioSegRow
 	cursor    int
 	col       int
 	typing    bool
 	typingBuf string
 }
 
-func newRunEditor() runEditor {
-	return runEditor{rows: []runSegRow{{zoneIdx: 0}}}
+func newCardioEditor() cardioEditor {
+	return cardioEditor{rows: []cardioSegRow{{zoneIdx: 0}}}
 }
 
-func (e *runEditor) isTyping() bool { return e.typing }
+func (e *cardioEditor) isTyping() bool { return e.typing }
 
-func (e *runEditor) addRow() {
+func (e *cardioEditor) addRow() {
 	if len(e.rows) < 12 {
-		e.rows = append(e.rows, runSegRow{zoneIdx: 0})
+		e.rows = append(e.rows, cardioSegRow{zoneIdx: 0})
 		e.cursor = len(e.rows) - 1
 		e.col = 0
 		e.typing = false
 	}
 }
 
-func (e *runEditor) deleteRow() {
+func (e *cardioEditor) deleteRow() {
 	if len(e.rows) <= 1 {
 		return
 	}
@@ -262,37 +275,45 @@ func (e *runEditor) deleteRow() {
 	e.typing = false
 }
 
-func (e *runEditor) currentFieldStr() string {
+func (e *cardioEditor) currentFieldStr() string {
 	row := e.rows[e.cursor]
 	switch e.col {
-	case runColDistance:
+	case cardioColDistance:
 		return row.distanceStr
-	case runColDuration:
+	case cardioColDuration:
 		return row.durationStr
+	case cardioColElevation:
+		return row.elevationStr
+	case cardioColSteps:
+		return row.stepsStr
 	}
 	return ""
 }
 
-func (e *runEditor) setCurrentFieldStr(s string) {
+func (e *cardioEditor) setCurrentFieldStr(s string) {
 	switch e.col {
-	case runColDistance:
+	case cardioColDistance:
 		e.rows[e.cursor].distanceStr = s
-	case runColDuration:
+	case cardioColDuration:
 		e.rows[e.cursor].durationStr = s
+	case cardioColElevation:
+		e.rows[e.cursor].elevationStr = s
+	case cardioColSteps:
+		e.rows[e.cursor].stepsStr = s
 	}
 }
 
-func (e *runEditor) isTextCol() bool {
-	return e.col == runColDistance || e.col == runColDuration
+func (e *cardioEditor) isTextCol() bool {
+	return e.col >= cardioColDistance && e.col <= cardioColSteps
 }
 
-func (e *runEditor) update(msg tea.KeyMsg) {
+func (e *cardioEditor) update(msg tea.KeyMsg) {
 	if e.typing && e.isTextCol() {
 		switch msg.String() {
 		case "tab":
 			e.typing = false
 			e.col++
-			if e.col > runColDuration {
+			if e.col >= cardioColCount {
 				e.col = 0
 			} else {
 				e.typing = e.isTextCol()
@@ -334,7 +355,7 @@ func (e *runEditor) update(msg tea.KeyMsg) {
 		}
 	case "tab":
 		e.col++
-		if e.col > runColDuration {
+		if e.col >= cardioColCount {
 			e.col = 0
 		}
 		e.typing = e.isTextCol()
@@ -347,7 +368,7 @@ func (e *runEditor) update(msg tea.KeyMsg) {
 			e.typing = false
 		}
 	case "right", "l":
-		if e.col < runColDuration {
+		if e.col < cardioColSteps {
 			e.col++
 			e.typing = e.isTextCol()
 			if e.typing {
@@ -355,18 +376,18 @@ func (e *runEditor) update(msg tea.KeyMsg) {
 			}
 		}
 	case "enter":
-		if e.col == runColZone {
+		if e.col == cardioColZone {
 			// Enter moves to distance column.
-			e.col = runColDistance
+			e.col = cardioColDistance
 			e.typing = true
 			e.typingBuf = e.currentFieldStr()
 		}
 		// Text cols: enter is intercepted by parent before reaching here.
 	case " ":
-		if e.col == runColZone {
+		if e.col == cardioColZone {
 			// Space cycles zone.
 			e.rows[e.cursor].zoneIdx++
-			if e.rows[e.cursor].zoneIdx >= len(runZones) {
+			if e.rows[e.cursor].zoneIdx >= len(cardioZones) {
 				e.rows[e.cursor].zoneIdx = 0
 			}
 		} else {
@@ -380,14 +401,14 @@ func (e *runEditor) update(msg tea.KeyMsg) {
 	}
 }
 
-func (e *runEditor) view(width int) string {
+func (e *cardioEditor) view(width int) string {
 	var b strings.Builder
-	header := fmt.Sprintf("  %-10s  %-12s  %s", "Zone", "Distance (mi)", "Duration (mm:ss)")
+	header := fmt.Sprintf("  %-10s  %-10s  %-10s  %-10s  %s", "Zone", "Dist (mi)", "Dur (mm:ss)", "Elev (ft)", "Steps")
 	b.WriteString(common.TableHeaderStyle.Render(header) + "\n")
 	b.WriteString(common.DimStyle.Render("  "+strings.Repeat("─", width-4)) + "\n")
 
 	for i, row := range e.rows {
-		zone := runZoneLabels[row.zoneIdx]
+		zone := cardioZoneLabels[row.zoneIdx]
 		dist := row.distanceStr
 		if dist == "" {
 			dist = "—"
@@ -396,50 +417,72 @@ func (e *runEditor) view(width int) string {
 		if dur == "" {
 			dur = "—"
 		}
+		elev := row.elevationStr
+		if elev == "" {
+			elev = "—"
+		}
+		steps := row.stepsStr
+		if steps == "" {
+			steps = "—"
+		}
 
 		zoneCell := fmt.Sprintf("%-10s", zone)
-		distCell := fmt.Sprintf("%-14s", dist)
-		durCell := fmt.Sprintf("%-16s", dur)
+		distCell := fmt.Sprintf("%-10s", dist)
+		durCell := fmt.Sprintf("%-11s", dur)
+		elevCell := fmt.Sprintf("%-10s", elev)
+		stepsCell := fmt.Sprintf("%-6s", steps)
 
 		if i == e.cursor {
 			cursor := common.SelectedStyle.Render(">")
 			renderCell := func(col int, text string) string {
 				if e.col == col {
-					if e.typing && col != runColZone {
+					if e.typing && col != cardioColZone {
 						return common.SelectedStyle.Render(fmt.Sprintf("%-*s", len(text), e.typingBuf+"_"))
 					}
 					return common.SelectedStyle.Render(text)
 				}
 				return common.TableCellStyle.Render(text)
 			}
-			line := cursor + " " + renderCell(runColZone, zoneCell) + "  " +
-				renderCell(runColDistance, distCell) + "  " +
-				renderCell(runColDuration, durCell)
+			line := cursor + " " + renderCell(cardioColZone, zoneCell) + "  " +
+				renderCell(cardioColDistance, distCell) + "  " +
+				renderCell(cardioColDuration, durCell) + "  " +
+				renderCell(cardioColElevation, elevCell) + "  " +
+				renderCell(cardioColSteps, stepsCell)
 			b.WriteString(line + "\n")
 		} else {
 			line := "  " + common.TableCellStyle.Render(zoneCell) + "  " +
 				common.TableCellStyle.Render(distCell) + "  " +
-				common.TableCellStyle.Render(durCell)
+				common.TableCellStyle.Render(durCell) + "  " +
+				common.TableCellStyle.Render(elevCell) + "  " +
+				common.TableCellStyle.Render(stepsCell)
 			b.WriteString(line + "\n")
 		}
 	}
 	return b.String()
 }
 
-func (e *runEditor) toSegments() []api.RunSegment {
-	var out []api.RunSegment
+func (e *cardioEditor) toSegments() []api.CardioSegment {
+	var out []api.CardioSegment
 	for _, row := range e.rows {
-		dist, err := strconv.ParseFloat(strings.TrimSpace(row.distanceStr), 64)
-		if err != nil || dist <= 0 {
-			continue
-		}
 		durSecs := parseDurationToSeconds(row.durationStr)
 		if durSecs <= 0 {
 			continue
 		}
-		zone := runZones[row.zoneIdx]
-		z := zone
-		out = append(out, api.RunSegment{Zone: &z, DistanceMiles: dist, DurationSeconds: durSecs})
+		zone := cardioZones[row.zoneIdx]
+		seg := api.CardioSegment{
+			Zone:            &zone,
+			DurationSeconds: durSecs,
+		}
+		if dist, err := strconv.ParseFloat(strings.TrimSpace(row.distanceStr), 64); err == nil && dist > 0 {
+			seg.DistanceMiles = &dist
+		}
+		if elev, err := strconv.ParseFloat(strings.TrimSpace(row.elevationStr), 64); err == nil && elev > 0 {
+			seg.ElevationGainFt = &elev
+		}
+		if steps, err := strconv.Atoi(strings.TrimSpace(row.stepsStr)); err == nil && steps > 0 {
+			seg.Steps = &steps
+		}
+		out = append(out, seg)
 	}
 	return out
 }
@@ -449,8 +492,9 @@ func (e *runEditor) toSegments() []api.RunSegment {
 // step constants
 const (
 	stepType    = 0
-	stepRows    = 1 // custom row editor
+	stepSubtype = 1 // subtype selection
 	stepDetails = 2 // date/notes/duration huh form
+	stepRows    = 3 // custom row editor
 )
 
 type detailsState struct {
@@ -463,16 +507,22 @@ type detailsState struct {
 type LogWorkoutForm struct {
 	client      *api.Client
 	exercises   []exerciseOption
-	workoutType string // "LIFTING" or "RUNNING"
+	subtypes    []subtypeOption
+	workoutType string // "LIFTING" or "CARDIO"
+	subtypeID   string
 	step        int
 	typeForm    *huh.Form
+	subtypeForm *huh.Form
 	liftEditor  liftEditor
-	runEditor   runEditor
+	cardioEditor cardioEditor
 	details     detailsState
 	detailForm  *huh.Form
 }
 
 type workoutExercisesLoadedMsg struct{ exercises []exerciseOption }
+type workoutSubtypesLoadedMsg struct {
+	subtypes []subtypeOption
+}
 
 // NewLogWorkoutForm creates a new log-workout form.
 func NewLogWorkoutForm(client *api.Client) *LogWorkoutForm {
@@ -494,16 +544,35 @@ func (lw *LogWorkoutForm) buildTypeForm() *huh.Form {
 				Description("Choose workout type").
 				Options(
 					huh.NewOption("Lifting", "LIFTING"),
-					huh.NewOption("Running", "RUNNING"),
+					huh.NewOption("Cardio", "CARDIO"),
 				).
 				Value(&lw.workoutType),
 		),
 	).WithTheme(ActiveTheme)
 }
 
+func (lw *LogWorkoutForm) buildSubtypeForm() *huh.Form {
+	opts := make([]huh.Option[string], len(lw.subtypes))
+	for i, st := range lw.subtypes {
+		opts[i] = huh.NewOption(st.name, st.id)
+	}
+	if len(opts) == 0 {
+		opts = []huh.Option[string]{huh.NewOption("(no subtypes — create in Settings)", "")}
+	}
+	return huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Choose Subtype").
+				Description(common.TitleCase(lw.workoutType) + " subtype").
+				Options(opts...).
+				Value(&lw.subtypeID),
+		),
+	).WithTheme(ActiveTheme)
+}
+
 func (lw *LogWorkoutForm) buildDetailForm() *huh.Form {
 	today := common.TodayString()
-	if lw.workoutType == "RUNNING" {
+	if lw.workoutType == "CARDIO" {
 		return huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().
@@ -565,6 +634,32 @@ func (lw *LogWorkoutForm) loadExercises() tea.Cmd {
 	}
 }
 
+func (lw *LogWorkoutForm) loadSubtypes() tea.Cmd {
+	client := lw.client
+	wt := lw.workoutType
+	return func() tea.Msg {
+		all, err := client.GetAllSubtypes(&wt, false)
+		if err != nil {
+			return workoutSubtypesLoadedMsg{}
+		}
+		opts := make([]subtypeOption, len(all))
+		for i, st := range all {
+			opts[i] = subtypeOption{id: st.ID, name: st.Name}
+		}
+		return workoutSubtypesLoadedMsg{opts}
+	}
+}
+
+// SubtypeOptions returns the unexported subtypeOption slice so callers
+// can pass subtypes fetched separately into forms.
+func SubtypeOptions(subtypes []model.WorkoutSubtype) []subtypeOption {
+	opts := make([]subtypeOption, len(subtypes))
+	for i, st := range subtypes {
+		opts[i] = subtypeOption{id: st.ID, name: st.Name}
+	}
+	return opts
+}
+
 func (lw *LogWorkoutForm) Init() tea.Cmd {
 	return tea.Batch(lw.typeForm.Init(), lw.loadExercises())
 }
@@ -578,13 +673,19 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// esc cancels from any step
 		if msg.String() == "esc" {
 			if lw.step == stepRows {
-				// rows is last step for both types — go back to details
+				// rows → back to details
 				lw.step = stepDetails
 				lw.detailForm = lw.buildDetailForm()
 				return lw, lw.detailForm.Init()
 			}
 			if lw.step == stepDetails {
-				// details is second step for both types — go back to type
+				// details → back to subtype
+				lw.step = stepSubtype
+				lw.subtypeForm = lw.buildSubtypeForm()
+				return lw, lw.subtypeForm.Init()
+			}
+			if lw.step == stepSubtype {
+				// subtype → back to type
 				lw.step = stepType
 				lw.typeForm = lw.buildTypeForm()
 				return lw, lw.typeForm.Init()
@@ -598,6 +699,15 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			lw.liftEditor = newLiftEditor(lw.exercises)
 		}
 		return lw, nil
+
+	case workoutSubtypesLoadedMsg:
+		lw.subtypes = msg.subtypes
+		// Build and show subtype form now that we have data
+		if lw.step == stepSubtype {
+			lw.subtypeForm = lw.buildSubtypeForm()
+			return lw, lw.subtypeForm.Init()
+		}
+		return lw, nil
 	}
 
 	switch lw.step {
@@ -606,10 +716,45 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var done bool
 		lw.typeForm, cmd, done = updateHuhForm(lw.typeForm, msg)
 		if done {
-			// both types go to details first
+			// Advance to subtype selection — load subtypes for this type
+			lw.step = stepSubtype
+			return lw, lw.loadSubtypes()
+		}
+		return lw, cmd
+
+	case stepSubtype:
+		if lw.subtypeForm == nil {
+			// Still loading subtypes
+			return lw, nil
+		}
+		var cmd tea.Cmd
+		var done bool
+		lw.subtypeForm, cmd, done = updateHuhForm(lw.subtypeForm, msg)
+		if done {
+			// Advance to details
 			lw.step = stepDetails
 			lw.detailForm = lw.buildDetailForm()
 			return lw, lw.detailForm.Init()
+		}
+		return lw, cmd
+
+	case stepDetails:
+		var cmd tea.Cmd
+		var done bool
+		lw.detailForm, cmd, done = updateHuhForm(lw.detailForm, msg)
+		if done {
+			// Advance to row editor
+			lw.step = stepRows
+			if lw.workoutType == "LIFTING" {
+				if lw.liftEditor.rows == nil {
+					lw.liftEditor = newLiftEditor(lw.exercises)
+				}
+			} else {
+				if lw.cardioEditor.rows == nil {
+					lw.cardioEditor = newCardioEditor()
+				}
+			}
+			return lw, nil
 		}
 		return lw, cmd
 
@@ -621,7 +766,7 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if lw.workoutType == "LIFTING" {
 					typing = lw.liftEditor.isTyping()
 				} else {
-					typing = lw.runEditor.isTyping()
+					typing = lw.cardioEditor.isTyping()
 				}
 				if !typing {
 					return lw, lw.submit()
@@ -630,40 +775,25 @@ func (lw *LogWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if lw.workoutType == "LIFTING" {
 				lw.liftEditor.update(key)
 			} else {
-				lw.runEditor.update(key)
+				lw.cardioEditor.update(key)
 			}
 		}
 		return lw, nil
-
-	case stepDetails:
-		var cmd tea.Cmd
-		var done bool
-		lw.detailForm, cmd, done = updateHuhForm(lw.detailForm, msg)
-		if done {
-			// both types advance to row editor after details
-			lw.step = stepRows
-			if lw.workoutType == "LIFTING" {
-				if lw.liftEditor.rows == nil {
-					lw.liftEditor = newLiftEditor(lw.exercises)
-				}
-			} else {
-				if lw.runEditor.rows == nil {
-					lw.runEditor = newRunEditor()
-				}
-			}
-			return lw, nil
-		}
-		return lw, cmd
 	}
 
 	return lw, nil
 }
 
 func (lw *LogWorkoutForm) submit() tea.Cmd {
+	if lw.subtypeID == "" {
+		return func() tea.Msg {
+			return common.ToastMsg{Text: "No subtype selected — create one in Settings first", IsError: true}
+		}
+	}
 	return func() tea.Msg {
 		var err error
-		if lw.workoutType == "RUNNING" {
-			err = lw.submitRun()
+		if lw.workoutType == "CARDIO" {
+			err = lw.submitCardio()
 		} else {
 			err = lw.submitLift()
 		}
@@ -675,12 +805,9 @@ func (lw *LogWorkoutForm) submit() tea.Cmd {
 }
 
 func (lw *LogWorkoutForm) submitLift() error {
-	var durPtr *int
-	if lw.details.durationStr != "" {
-		d, err := strconv.Atoi(strings.TrimSpace(lw.details.durationStr))
-		if err == nil && d > 0 {
-			durPtr = &d
-		}
+	dur, err := strconv.Atoi(strings.TrimSpace(lw.details.durationStr))
+	if err != nil || dur <= 0 {
+		return fmt.Errorf("duration is required and must be > 0")
 	}
 	var notes *string
 	if lw.details.notes != "" {
@@ -688,20 +815,20 @@ func (lw *LogWorkoutForm) submitLift() error {
 		notes = &n
 	}
 	lifts := lw.liftEditor.toLiftEntries()
-	return lw.client.LogLiftSession(lw.details.date, durPtr, notes, lifts)
+	return lw.client.LogLiftSession(lw.details.date, dur, notes, lw.subtypeID, lifts)
 }
 
-func (lw *LogWorkoutForm) submitRun() error {
-	segments := lw.runEditor.toSegments()
+func (lw *LogWorkoutForm) submitCardio() error {
+	segments := lw.cardioEditor.toSegments()
 	if len(segments) == 0 {
-		return fmt.Errorf("each segment needs a distance (mi) and duration (mm:ss)")
+		return fmt.Errorf("each segment needs a duration (mm:ss)")
 	}
 	var notes *string
 	if lw.details.notes != "" {
 		n := lw.details.notes
 		notes = &n
 	}
-	return lw.client.LogRunSession(lw.details.date, notes, segments)
+	return lw.client.LogCardioSession(lw.details.date, notes, lw.subtypeID, segments)
 }
 
 // parseDurationToSeconds parses "MM:SS" or plain minutes into total seconds.
@@ -727,15 +854,21 @@ func (lw *LogWorkoutForm) View() string {
 	case stepType:
 		return common.PopupStyle.Render(lw.typeForm.View())
 
+	case stepSubtype:
+		if lw.subtypeForm == nil {
+			return common.PopupStyle.Render(common.DimStyle.Render("Loading subtypes…"))
+		}
+		return common.PopupStyle.Render(lw.subtypeForm.View())
+
 	case stepRows:
-		popupW := 62
-		b.WriteString(common.SelectedStyle.Render("Log "+capitalize(lw.workoutType)) + "\n\n")
+		popupW := 76
+		b.WriteString(common.SelectedStyle.Render("Log "+common.TitleCase(lw.workoutType)) + "\n\n")
 		if lw.workoutType == "LIFTING" {
 			b.WriteString(common.DimStyle.Render("  Exercises (optional)") + "\n\n")
 			b.WriteString(lw.liftEditor.view(popupW))
 		} else {
 			b.WriteString(common.DimStyle.Render("  Segments") + "\n\n")
-			b.WriteString(lw.runEditor.view(popupW))
+			b.WriteString(lw.cardioEditor.view(popupW))
 		}
 		b.WriteString("\n")
 		b.WriteString(common.DimStyle.Render(
@@ -755,9 +888,3 @@ func (lw *LogWorkoutForm) View() string {
 	return ""
 }
 
-func capitalize(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + strings.ToLower(s[1:])
-}

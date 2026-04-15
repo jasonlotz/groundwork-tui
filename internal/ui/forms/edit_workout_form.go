@@ -16,26 +16,32 @@ import (
 
 // EditWorkoutForm is a Bubble Tea model for editing an existing workout session.
 // It skips the type-select step (type is fixed) and follows the same step order
-// as LogWorkoutForm: details first, then the row editor.
+// as LogWorkoutForm: subtype first, then details, then the row editor.
 type EditWorkoutForm struct {
-	client     *api.Client
-	session    model.WorkoutSession
-	exercises  []exerciseOption // used only for LIFTING
-	step       int              // stepDetails or stepRows
-	liftEditor liftEditor
-	runEditor  runEditor
-	details    detailsState
-	detailForm *huh.Form
+	client       *api.Client
+	session      model.WorkoutSession
+	exercises    []exerciseOption  // used only for LIFTING
+	subtypes     []subtypeOption
+	subtypeID    string
+	step         int // stepSubtype, stepDetails, or stepRows
+	subtypeForm  *huh.Form
+	liftEditor   liftEditor
+	cardioEditor cardioEditor
+	details      detailsState
+	detailForm   *huh.Form
 }
 
 // NewEditWorkoutForm creates a pre-populated edit form for an existing session.
-// exercises must be pre-loaded by the caller (pass nil for running sessions).
-func NewEditWorkoutForm(client *api.Client, session model.WorkoutSession, exercises []exerciseOption) *EditWorkoutForm {
+// exercises must be pre-loaded by the caller (pass nil for cardio sessions).
+// subtypes must be pre-loaded by the caller.
+func NewEditWorkoutForm(client *api.Client, session model.WorkoutSession, exercises []exerciseOption, subtypes []subtypeOption) *EditWorkoutForm {
 	f := &EditWorkoutForm{
 		client:    client,
 		session:   session,
 		exercises: exercises,
-		step:      stepDetails,
+		subtypes:  subtypes,
+		subtypeID: session.SubtypeID,
+		step:      stepSubtype,
 	}
 
 	// Pre-populate details from existing session.
@@ -53,10 +59,10 @@ func NewEditWorkoutForm(client *api.Client, session model.WorkoutSession, exerci
 	if session.Type == model.WorkoutTypeLifting {
 		f.liftEditor = f.buildLiftEditor()
 	} else {
-		f.runEditor = f.buildRunEditor()
+		f.cardioEditor = f.buildCardioEditor()
 	}
 
-	f.detailForm = f.buildDetailForm()
+	f.subtypeForm = f.buildSubtypeForm()
 	return f
 }
 
@@ -95,32 +101,60 @@ func (f *EditWorkoutForm) buildLiftEditor() liftEditor {
 	return e
 }
 
-func (f *EditWorkoutForm) buildRunEditor() runEditor {
-	e := newRunEditor()
-	if f.session.RunEntry == nil || len(f.session.RunEntry.Segments) == 0 {
+func (f *EditWorkoutForm) buildCardioEditor() cardioEditor {
+	e := newCardioEditor()
+	if f.session.CardioEntry == nil || len(f.session.CardioEntry.Segments) == 0 {
 		return e
 	}
 	e.rows = nil
-	for _, seg := range f.session.RunEntry.Segments {
+	for _, seg := range f.session.CardioEntry.Segments {
 		zoneIdx := 0
-		for i, z := range runZones {
+		for i, z := range cardioZones {
 			if z == seg.Zone {
 				zoneIdx = i
 				break
 			}
 		}
-		e.rows = append(e.rows, runSegRow{
+		row := cardioSegRow{
 			zoneIdx:     zoneIdx,
-			distanceStr: fmt.Sprintf("%.2f", seg.DistanceMiles),
 			durationStr: secondsToMMSS(seg.DurationSeconds),
-		})
+		}
+		if seg.DistanceMiles != nil {
+			row.distanceStr = fmt.Sprintf("%.2f", *seg.DistanceMiles)
+		}
+		if seg.ElevationGainFt != nil {
+			row.elevationStr = fmt.Sprintf("%.0f", *seg.ElevationGainFt)
+		}
+		if seg.Steps != nil {
+			row.stepsStr = strconv.Itoa(*seg.Steps)
+		}
+		e.rows = append(e.rows, row)
 	}
 	e.cursor = 0
 	return e
 }
 
+func (f *EditWorkoutForm) buildSubtypeForm() *huh.Form {
+	opts := make([]huh.Option[string], len(f.subtypes))
+	for i, st := range f.subtypes {
+		opts[i] = huh.NewOption(st.name, st.id)
+	}
+	if len(opts) == 0 {
+		opts = []huh.Option[string]{huh.NewOption("(no subtypes — create in Settings)", "")}
+	}
+	return huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Edit "+common.TitleCase(string(f.session.Type))).
+				Description("Choose subtype").
+				Options(opts...).
+				Value(&f.subtypeID),
+		),
+	).WithTheme(ActiveTheme)
+}
+
 func (f *EditWorkoutForm) buildDetailForm() *huh.Form {
-	if f.session.Type == model.WorkoutTypeRunning {
+	if f.session.Type == model.WorkoutTypeCardio {
 		return huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().
@@ -142,7 +176,19 @@ func (f *EditWorkoutForm) buildDetailForm() *huh.Form {
 				Value(&f.details.date),
 			huh.NewInput().
 				Title("Duration (minutes)").
-				Description("Optional").
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("duration is required")
+					}
+					v, err := strconv.Atoi(strings.TrimSpace(s))
+					if err != nil {
+						return fmt.Errorf("must be a whole number")
+					}
+					if v <= 0 {
+						return fmt.Errorf("must be greater than 0")
+					}
+					return nil
+				}).
 				Value(&f.details.durationStr),
 			huh.NewText().
 				Title("Notes").
@@ -153,7 +199,7 @@ func (f *EditWorkoutForm) buildDetailForm() *huh.Form {
 }
 
 func (f *EditWorkoutForm) Init() tea.Cmd {
-	return f.detailForm.Init()
+	return f.subtypeForm.Init()
 }
 
 func (f *EditWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -163,17 +209,35 @@ func (f *EditWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if key.String() == "esc" {
 			if f.step == stepRows {
-				// rows → back to details (mirrors log form: esc on rows → details)
+				// rows → back to details
 				f.step = stepDetails
 				f.detailForm = f.buildDetailForm()
 				return f, f.detailForm.Init()
 			}
-			// details → cancel (no type step in edit form)
+			if f.step == stepDetails {
+				// details → back to subtype
+				f.step = stepSubtype
+				f.subtypeForm = f.buildSubtypeForm()
+				return f, f.subtypeForm.Init()
+			}
+			// subtype → cancel
 			return f, func() tea.Msg { return WorkoutLogDoneMsg{Cancelled: true} }
 		}
 	}
 
 	switch f.step {
+	case stepSubtype:
+		var cmd tea.Cmd
+		var done bool
+		f.subtypeForm, cmd, done = updateHuhForm(f.subtypeForm, msg)
+		if done {
+			// Advance to details.
+			f.step = stepDetails
+			f.detailForm = f.buildDetailForm()
+			return f, f.detailForm.Init()
+		}
+		return f, cmd
+
 	case stepDetails:
 		var cmd tea.Cmd
 		var done bool
@@ -193,7 +257,7 @@ func (f *EditWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if f.session.Type == model.WorkoutTypeLifting {
 					typing = f.liftEditor.isTyping()
 				} else {
-					typing = f.runEditor.isTyping()
+					typing = f.cardioEditor.isTyping()
 				}
 				if !typing {
 					return f, f.submit()
@@ -202,7 +266,7 @@ func (f *EditWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if f.session.Type == model.WorkoutTypeLifting {
 				f.liftEditor.update(key)
 			} else {
-				f.runEditor.update(key)
+				f.cardioEditor.update(key)
 			}
 		}
 		return f, nil
@@ -212,12 +276,17 @@ func (f *EditWorkoutForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (f *EditWorkoutForm) submit() tea.Cmd {
+	if f.subtypeID == "" {
+		return func() tea.Msg {
+			return common.ToastMsg{Text: "No subtype selected — create one in Settings first", IsError: true}
+		}
+	}
 	return func() tea.Msg {
 		var err error
 		if f.session.Type == model.WorkoutTypeLifting {
 			err = f.submitLift()
 		} else {
-			err = f.submitRun()
+			err = f.submitCardio()
 		}
 		if err != nil {
 			return common.ToastMsg{Text: "Failed to update workout: " + err.Error(), IsError: true}
@@ -227,12 +296,9 @@ func (f *EditWorkoutForm) submit() tea.Cmd {
 }
 
 func (f *EditWorkoutForm) submitLift() error {
-	var durPtr *int
-	if f.details.durationStr != "" {
-		d, err := strconv.Atoi(strings.TrimSpace(f.details.durationStr))
-		if err == nil && d > 0 {
-			durPtr = &d
-		}
+	dur, err := strconv.Atoi(strings.TrimSpace(f.details.durationStr))
+	if err != nil || dur <= 0 {
+		return fmt.Errorf("duration is required and must be > 0")
 	}
 	var notes *string
 	if f.details.notes != "" {
@@ -243,16 +309,17 @@ func (f *EditWorkoutForm) submitLift() error {
 	return f.client.UpdateLiftSession(api.UpdateLiftSessionInput{
 		SessionID:       f.session.ID,
 		Date:            &date,
-		DurationMinutes: durPtr,
+		DurationMinutes: dur,
 		Notes:           notes,
+		SubtypeID:       f.subtypeID,
 		Lifts:           f.liftEditor.toLiftEntries(),
 	})
 }
 
-func (f *EditWorkoutForm) submitRun() error {
-	segments := f.runEditor.toSegments()
+func (f *EditWorkoutForm) submitCardio() error {
+	segments := f.cardioEditor.toSegments()
 	if len(segments) == 0 {
-		return fmt.Errorf("each segment needs a distance (mi) and duration (mm:ss)")
+		return fmt.Errorf("each segment needs a duration (mm:ss)")
 	}
 	var notes *string
 	if f.details.notes != "" {
@@ -260,10 +327,11 @@ func (f *EditWorkoutForm) submitRun() error {
 		notes = &n
 	}
 	date := f.details.date
-	return f.client.UpdateRunSession(api.UpdateRunSessionInput{
+	return f.client.UpdateCardioSession(api.UpdateCardioSessionInput{
 		SessionID: f.session.ID,
 		Date:      &date,
 		Notes:     notes,
+		SubtypeID: f.subtypeID,
 		Segments:  segments,
 	})
 }
@@ -272,19 +340,22 @@ func (f *EditWorkoutForm) View() string {
 	var b strings.Builder
 
 	switch f.step {
+	case stepSubtype:
+		return common.PopupStyle.Render(f.subtypeForm.View())
+
 	case stepDetails:
 		return common.PopupStyle.Render(f.detailForm.View())
 
 	case stepRows:
-		popupW := 62
-		title := "Edit " + capitalize(string(f.session.Type))
+		popupW := 76
+		title := "Edit " + common.TitleCase(string(f.session.Type))
 		b.WriteString(common.SelectedStyle.Render(title) + "\n\n")
 		if f.session.Type == model.WorkoutTypeLifting {
 			b.WriteString(common.DimStyle.Render("  Exercises (optional)") + "\n\n")
 			b.WriteString(f.liftEditor.view(popupW))
 		} else {
 			b.WriteString(common.DimStyle.Render("  Segments") + "\n\n")
-			b.WriteString(f.runEditor.view(popupW))
+			b.WriteString(f.cardioEditor.view(popupW))
 		}
 		b.WriteString("\n")
 		b.WriteString(common.DimStyle.Render(

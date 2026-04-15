@@ -278,12 +278,12 @@ func (m Model) renderKPIs() string {
 
 func (m Model) renderWorkoutKPIs() string {
 	s := m.workoutStats
-	liftGoal, runGoal := 0, 0
+	liftGoal, cardioGoal := 0, 0
 	for _, g := range m.workoutGoals {
 		if g.Type == model.WorkoutTypeLifting {
 			liftGoal = g.SessionsPerWeek
-		} else if g.Type == model.WorkoutTypeRunning {
-			runGoal = g.SessionsPerWeek
+		} else if g.Type == model.WorkoutTypeCardio {
+			cardioGoal = g.SessionsPerWeek
 		}
 	}
 
@@ -291,14 +291,14 @@ func (m Model) renderWorkoutKPIs() string {
 	if liftGoal > 0 {
 		liftLabel = fmt.Sprintf("%d/%d", s.LiftingThisWeek, liftGoal)
 	}
-	runLabel := fmt.Sprintf("%d", s.RunningThisWeek)
-	if runGoal > 0 {
-		runLabel = fmt.Sprintf("%d/%d", s.RunningThisWeek, runGoal)
+	cardioLabel := fmt.Sprintf("%d", s.CardioThisWeek)
+	if cardioGoal > 0 {
+		cardioLabel = fmt.Sprintf("%d/%d", s.CardioThisWeek, cardioGoal)
 	}
 
 	cards := []string{
 		common.StatCard("Lifting/wk", liftLabel),
-		common.StatCard("Running/wk", runLabel),
+		common.StatCard("Cardio/wk", cardioLabel),
 	}
 	return common.RenderKPICards(cards)
 }

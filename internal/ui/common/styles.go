@@ -202,6 +202,14 @@ func RenderBar(p progress.Model, pct float64, width int) string {
 	return p.ViewAs(pct)
 }
 
+// TitleCase converts "LIFTING" → "Lifting", "CARDIO" → "Cardio".
+func TitleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + strings.ToLower(s[1:])
+}
+
 // Truncate shortens s to at most n runes, adding "…" if truncated.
 // Uses rune-aware slicing so multi-byte characters are handled correctly.
 func Truncate(s string, n int) string {

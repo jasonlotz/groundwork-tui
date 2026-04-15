@@ -689,18 +689,79 @@ func (c *Client) GetAllExercises(includeArchived bool) ([]model.Exercise, error)
 	return out, nil
 }
 
+// --- subtype procedures ---
+
+type getAllSubtypesInput struct {
+	Type            *string `json:"type,omitempty"`
+	IncludeArchived bool    `json:"includeArchived,omitempty"`
+}
+
+// GetAllSubtypes calls subtype.getAll.
+func (c *Client) GetAllSubtypes(workoutType *string, includeArchived bool) ([]model.WorkoutSubtype, error) {
+	out, err := query[[]model.WorkoutSubtype](c, "subtype.getAll", getAllSubtypesInput{Type: workoutType, IncludeArchived: includeArchived})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+type subtypeCreateInput struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+// CreateSubtype calls subtype.create.
+func (c *Client) CreateSubtype(workoutType, name string) error {
+	_, err := mutation[struct{}](c, "subtype.create", subtypeCreateInput{Type: workoutType, Name: name})
+	return err
+}
+
+type subtypeUpdateInput struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// UpdateSubtype calls subtype.update.
+func (c *Client) UpdateSubtype(id, name string) error {
+	_, err := mutation[struct{}](c, "subtype.update", subtypeUpdateInput{ID: id, Name: name})
+	return err
+}
+
+type subtypeIDInput struct {
+	ID string `json:"id"`
+}
+
+// ArchiveSubtype calls subtype.archive.
+func (c *Client) ArchiveSubtype(id string) error {
+	_, err := mutation[struct{}](c, "subtype.archive", subtypeIDInput{ID: id})
+	return err
+}
+
+// UnarchiveSubtype calls subtype.unarchive.
+func (c *Client) UnarchiveSubtype(id string) error {
+	_, err := mutation[struct{}](c, "subtype.unarchive", subtypeIDInput{ID: id})
+	return err
+}
+
+// DeleteSubtype calls subtype.delete.
+func (c *Client) DeleteSubtype(id string) error {
+	_, err := mutation[struct{}](c, "subtype.delete", subtypeIDInput{ID: id})
+	return err
+}
+
 // --- workout procedures ---
 
 type getWorkoutSessionsInput struct {
-	Type     *string `json:"type,omitempty"`
-	DateFrom *string `json:"dateFrom,omitempty"`
-	DateTo   *string `json:"dateTo,omitempty"`
-	Limit    *int    `json:"limit,omitempty"`
+	Type      *string `json:"type,omitempty"`
+	SubtypeID *string `json:"subtypeId,omitempty"`
+	DateFrom  *string `json:"dateFrom,omitempty"`
+	DateTo    *string `json:"dateTo,omitempty"`
+	Limit     *int    `json:"limit,omitempty"`
 }
 
 // GetWorkoutSessions calls workout.getSessions.
 // It also computes a Details string for each session from the embedded
-// lift entries / run segments that the server already returns.
+// lift entries / cardio segments that the server already returns.
 func (c *Client) GetWorkoutSessions(workoutType *string, limit *int) ([]model.WorkoutSession, error) {
 	out, err := query[[]model.WorkoutSession](c, "workout.getSessions", getWorkoutSessionsInput{Type: workoutType, Limit: limit})
 	if err != nil {
@@ -713,7 +774,7 @@ func (c *Client) GetWorkoutSessions(workoutType *string, limit *int) ([]model.Wo
 }
 
 // formatSessionDetails builds a short human-readable summary of a session's
-// exercises (lifting) or segments (running), formatted entirely in the client
+// exercises (lifting) or segments (cardio), formatted entirely in the client
 // layer so TUI code stays clean.
 func formatSessionDetails(s *model.WorkoutSession) string {
 	if s.Type == model.WorkoutTypeLifting {
@@ -723,25 +784,32 @@ func formatSessionDetails(s *model.WorkoutSession) string {
 		}
 		return truncate(strings.Join(parts, ", "), 50)
 	}
-	// Running
-	if s.RunEntry == nil || len(s.RunEntry.Segments) == 0 {
+	// Cardio
+	if s.CardioEntry == nil || len(s.CardioEntry.Segments) == 0 {
 		return ""
 	}
-	segs := s.RunEntry.Segments
+	segs := s.CardioEntry.Segments
 	if len(segs) == 1 {
 		seg := segs[0]
-		return fmt.Sprintf("%s %.2fmi %s", runZoneLabel(seg.Zone), seg.DistanceMiles, fmtSecs(seg.DurationSeconds))
+		dist := 0.0
+		if seg.DistanceMiles != nil {
+			dist = *seg.DistanceMiles
+		}
+		return fmt.Sprintf("%s %.2fmi %s", cardioZoneLabel(seg.Zone), dist, fmtSecs(seg.DurationSeconds))
 	}
 	parts := make([]string, 0, len(segs))
 	for _, seg := range segs {
-		parts = append(parts, fmt.Sprintf("%s %.1fmi", runZoneLabel(seg.Zone), seg.DistanceMiles))
+		dist := 0.0
+		if seg.DistanceMiles != nil {
+			dist = *seg.DistanceMiles
+		}
+		parts = append(parts, fmt.Sprintf("%s %.1fmi", cardioZoneLabel(seg.Zone), dist))
 	}
 	return truncate(strings.Join(parts, ", "), 50)
 }
 
-// runZoneLabel maps a RunZone enum value to its human-readable label,
-// matching the web app's RUN_ZONE_LABELS in src/lib/workout-utils.ts.
-func runZoneLabel(zone string) string {
+// cardioZoneLabel maps a CardioZone enum value to its human-readable label.
+func cardioZoneLabel(zone string) string {
 	switch zone {
 	case "Z1":
 		return "Zone 1"
@@ -754,7 +822,7 @@ func runZoneLabel(zone string) string {
 	case "Z5":
 		return "Zone 5"
 	case "FREE":
-		return "Free Run"
+		return "Freestyle"
 	default:
 		return zone
 	}
@@ -803,17 +871,19 @@ type liftEntryInput struct {
 
 type logLiftSessionInput struct {
 	Date            string           `json:"date"`
-	DurationMinutes *int             `json:"durationMinutes,omitempty"`
+	DurationMinutes int              `json:"durationMinutes"`
 	Notes           *string          `json:"notes,omitempty"`
+	SubtypeID       string           `json:"subtypeId"`
 	Lifts           []liftEntryInput `json:"lifts"`
 }
 
 // LogLiftSession calls workout.logLiftSession.
-func (c *Client) LogLiftSession(date string, durationMinutes *int, notes *string, lifts []liftEntryInput) error {
+func (c *Client) LogLiftSession(date string, durationMinutes int, notes *string, subtypeID string, lifts []liftEntryInput) error {
 	input := logLiftSessionInput{
 		Date:            date + "T00:00:00.000Z",
 		DurationMinutes: durationMinutes,
 		Notes:           notes,
+		SubtypeID:       subtypeID,
 		Lifts:           lifts,
 	}
 	_, err := mutationWithMeta[struct{}](c, "workout.logLiftSession", superJSONDates(input, "date"))
@@ -823,29 +893,33 @@ func (c *Client) LogLiftSession(date string, durationMinutes *int, notes *string
 // LiftEntry is an exported type for callers building lift session inputs.
 type LiftEntry = liftEntryInput
 
-type runSegmentInput struct {
-	Zone            *string `json:"zone,omitempty"`
-	DistanceMiles   float64 `json:"distanceMiles"`
-	DurationSeconds int     `json:"durationSeconds"`
+type cardioSegmentInput struct {
+	Zone            *string  `json:"zone,omitempty"`
+	DistanceMiles   *float64 `json:"distanceMiles,omitempty"`
+	DurationSeconds int      `json:"durationSeconds"`
+	ElevationGainFt *float64 `json:"elevationGainFt,omitempty"`
+	Steps           *int     `json:"steps,omitempty"`
 }
 
-type logRunSessionInput struct {
-	Date     string            `json:"date"`
-	Notes    *string           `json:"notes,omitempty"`
-	Segments []runSegmentInput `json:"segments"`
+type logCardioSessionInput struct {
+	Date      string               `json:"date"`
+	Notes     *string              `json:"notes,omitempty"`
+	SubtypeID string               `json:"subtypeId"`
+	Segments  []cardioSegmentInput `json:"segments"`
 }
 
-// RunSegment is an exported type for callers building run session inputs.
-type RunSegment = runSegmentInput
+// CardioSegment is an exported type for callers building cardio session inputs.
+type CardioSegment = cardioSegmentInput
 
-// LogRunSession calls workout.logRunSession.
-func (c *Client) LogRunSession(date string, notes *string, segments []runSegmentInput) error {
-	input := logRunSessionInput{
-		Date:     date + "T00:00:00.000Z",
-		Notes:    notes,
-		Segments: segments,
+// LogCardioSession calls workout.logCardioSession.
+func (c *Client) LogCardioSession(date string, notes *string, subtypeID string, segments []cardioSegmentInput) error {
+	input := logCardioSessionInput{
+		Date:      date + "T00:00:00.000Z",
+		Notes:     notes,
+		SubtypeID: subtypeID,
+		Segments:  segments,
 	}
-	_, err := mutationWithMeta[struct{}](c, "workout.logRunSession", superJSONDates(input, "date"))
+	_, err := mutationWithMeta[struct{}](c, "workout.logCardioSession", superJSONDates(input, "date"))
 	return err
 }
 
@@ -907,13 +981,14 @@ func (c *Client) GetLiftProgress(exerciseID string) (*model.LiftProgress, error)
 	return &out, nil
 }
 
-type getRunProgressInput struct {
-	Days *int `json:"days,omitempty"`
+type getCardioProgressInput struct {
+	Days      *int    `json:"days,omitempty"`
+	SubtypeID *string `json:"subtypeId,omitempty"`
 }
 
-// GetRunProgress calls workout.getRunProgress.
-func (c *Client) GetRunProgress() (model.RunProgress, error) {
-	return query[model.RunProgress](c, "workout.getRunProgress", getRunProgressInput{})
+// GetCardioProgress calls workout.getCardioProgress.
+func (c *Client) GetCardioProgress(subtypeID *string) (model.CardioProgress, error) {
+	return query[model.CardioProgress](c, "workout.getCardioProgress", getCardioProgressInput{SubtypeID: subtypeID})
 }
 
 // --- workout update ---
@@ -922,43 +997,49 @@ func (c *Client) GetRunProgress() (model.RunProgress, error) {
 type UpdateLiftSessionInput struct {
 	SessionID       string
 	Date            *string // "YYYY-MM-DD", optional
-	DurationMinutes *int    // optional; nil = clear
+	DurationMinutes int
 	Notes           *string // optional; nil = clear
+	SubtypeID       string
 	Lifts           []LiftEntry
 }
 
-// UpdateRunSessionInput holds the fields needed to update a running session.
-type UpdateRunSessionInput struct {
+// UpdateCardioSessionInput holds the fields needed to update a cardio session.
+type UpdateCardioSessionInput struct {
 	SessionID string
 	Date      *string // "YYYY-MM-DD", optional
 	Notes     *string // optional; nil = clear
-	Segments  []RunSegment
+	SubtypeID string
+	Segments  []CardioSegment
 }
 
 type updateLiftSessionPayload struct {
 	Type            string           `json:"type"`
 	SessionID       string           `json:"sessionId"`
 	Date            *string          `json:"date,omitempty"`
-	DurationMinutes *int             `json:"durationMinutes,omitempty"`
+	DurationMinutes int              `json:"durationMinutes"`
 	Notes           *string          `json:"notes,omitempty"`
+	SubtypeID       string           `json:"subtypeId"`
 	Lifts           []liftEntryInput `json:"lifts,omitempty"`
 }
 
-type updateRunSessionPayload struct {
-	Type      string            `json:"type"`
-	SessionID string            `json:"sessionId"`
-	Date      *string           `json:"date,omitempty"`
-	Notes     *string           `json:"notes,omitempty"`
-	Segments  []runSegmentInput `json:"segments,omitempty"`
+type updateCardioSessionPayload struct {
+	Type      string               `json:"type"`
+	SessionID string               `json:"sessionId"`
+	Date      *string              `json:"date,omitempty"`
+	Notes     *string              `json:"notes,omitempty"`
+	SubtypeID string               `json:"subtypeId"`
+	Segments  []cardioSegmentInput `json:"segments,omitempty"`
 }
 
 // UpdateLiftSession calls workout.updateSession for a LIFTING session.
 func (c *Client) UpdateLiftSession(input UpdateLiftSessionInput) error {
 	payload := updateLiftSessionPayload{
-		Type:      "LIFTING",
-		SessionID: input.SessionID,
-		Notes:     input.Notes,
-		Lifts:     input.Lifts,
+		Type:            "LIFTING",
+		SessionID:       input.SessionID,
+		DurationMinutes: input.DurationMinutes,
+		Notes:           input.Notes,
+		SubtypeID:       input.SubtypeID,
+		Lifts:           input.Lifts,
 	}
 	var datePaths []string
 	if input.Date != nil {
@@ -966,19 +1047,17 @@ func (c *Client) UpdateLiftSession(input UpdateLiftSessionInput) error {
 		payload.Date = &s
 		datePaths = append(datePaths, "date")
 	}
-	if input.DurationMinutes != nil {
-		payload.DurationMinutes = input.DurationMinutes
-	}
 	_, err := mutationWithMeta[struct{}](c, "workout.updateSession", superJSONDates(payload, datePaths...))
 	return err
 }
 
-// UpdateRunSession calls workout.updateSession for a RUNNING session.
-func (c *Client) UpdateRunSession(input UpdateRunSessionInput) error {
-	payload := updateRunSessionPayload{
-		Type:      "RUNNING",
+// UpdateCardioSession calls workout.updateSession for a CARDIO session.
+func (c *Client) UpdateCardioSession(input UpdateCardioSessionInput) error {
+	payload := updateCardioSessionPayload{
+		Type:      "CARDIO",
 		SessionID: input.SessionID,
 		Notes:     input.Notes,
+		SubtypeID: input.SubtypeID,
 		Segments:  input.Segments,
 	}
 	var datePaths []string

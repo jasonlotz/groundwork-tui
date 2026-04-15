@@ -65,27 +65,28 @@ internal/
       app.go             — root model; owns navigation stack + all screen models
     common/
       styles.go          — all Lip Gloss styles + shared helpers (RenderTitle, RenderBar, etc.)
-      messages.go        — cross-cutting message types: GoBackMsg, ToastMsg, ErrMsg, MaterialChangedMsg, LearningLoggedMsg, WorkoutLoggedMsg, ExerciseChangedMsg, etc.
+      messages.go        — cross-cutting message types: GoBackMsg, ToastMsg, ErrMsg, MaterialChangedMsg, LearningLoggedMsg, WorkoutLoggedMsg, ExerciseChangedMsg, SubtypeChangedMsg, etc.
       tailwind.go        — maps Tailwind color class strings to terminal hex colors
       spinner.go         — pre-configured spinner
       help.go            — pre-configured help bar
       keys.go            — key binding helpers
-      tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen; tabs: d=Dashboard c=Categories s=Skills m=Materials a=Activity t=Settings f=Fitness
+      tabs.go            — RenderTabBar(activeTab, width): tab bar rendered at the top of every screen; tabs: d=Dashboard c=Categories s=Skills m=Materials f=Fitness a=Activity i=Settings
     forms/
       category_form.go   — CategoryForm, CategoryFormDoneMsg, NewCategoryCreateForm, NewCategoryEditForm
       skill_form.go      — SkillForm, SkillFormDoneMsg, NewSkillCreateFormWithCategories, NewSkillEditForm
       material_form.go   — MaterialForm, MaterialFormDoneMsg, MaterialFormResult, NewMaterialCreateForm, NewMaterialEditForm
       confirm_form.go    — ConfirmForm, ConfirmDoneMsg, NewConfirmForm
       log_form.go        — LogForm, LogDoneMsg, NewLogForm
-      log_workout_form.go — LogWorkoutForm, WorkoutLogDoneMsg, NewLogWorkoutForm(client)
+      log_workout_form.go — LogWorkoutForm, WorkoutLogDoneMsg, NewLogWorkoutForm(client); multi-step: type → subtype → details → row editor (lifts or cardio segments with zone/distance/duration/elevation/steps)
+      edit_workout_form.go — EditWorkoutForm, NewEditWorkoutForm(client, session, exercises, subtypes); subtype → details → row editor
       colors.go          — shared colorOptions + ActiveTheme var + UpdateHuhForm helper (exported)
     setup/
       setup.go           — first-run wizard (Huh form for base URL + API key)
     theme/
       theme.go           — Theme struct, All slice (11 themes), Active pointer, SetActive()
     settings/
-      settings.go        — settings screen (press t): theme picker + exercise management (add/rename/archive/delete); accepts *api.Client; emits ThemeChangedMsg/ExerciseChangedMsg
-    dashboard/           — home screen: learning KPI cards + workout KPI cards (lifting/wk, running/wk) + active materials list
+      settings.go        — settings screen (press i): theme picker only; emits ThemeChangedMsg
+    dashboard/           — home screen: learning KPI cards + workout KPI cards (lifting/wk, cardio/wk) + active materials list
     materials/
       materials.go       — materials list + create/edit/delete/log overlays
       material_detail.go — DetailModel, NewDetail(): single material KPI + progress log
@@ -93,17 +94,12 @@ internal/
       skills.go          — skills list
       skill_detail.go    — DetailModel, NewDetail(): single skill KPI + materials table
     activity/
-      activity.go        — activity log list (learning log history; was progress/)
+      activity.go        — unified activity log: learning entries + workout sessions merged by date; filter 1=All 2=Learning 3=Lifting 4=Cardio
     categories/
       categories.go      — categories list
       category_detail.go — DetailModel, NewDetail(): single category skills list
     fitness/
-      fitness.go         — root Fitness model; owns three sub-tabs (Overview/Lifting/Running); L=log workout, D=delete session
-      overview.go        — Overview sub-tab: workout KPI cards (lifting/wk, running/wk, total/wk with goals) + recent sessions table; j/k to navigate
-      lifting.go         — Lifting sub-tab: lifting session history table
-      running.go         — Running sub-tab: running session history table + latest run stats (distance, time, pace)
-    forms/
-      log_workout_form.go — LogWorkoutForm: two-step huh form (type select → lift details or run distance/time/zone); emits WorkoutLogDoneMsg
+      fitness.go         — single sessions list with type filter (All/Lifting/Cardio); KPI cards (lifting/wk, cardio/wk, total/wk); w=log workout, e=edit, D=delete
 ```
 
 ---
@@ -146,7 +142,7 @@ Screens store an `overlay tea.Model` field. When non-nil, `Update` routes all me
 
 Every screen that can have an overlay must implement `HasOverlay() bool { return m.overlay != nil }`. The root `app.go` collects these via `inputActive()` to suppress global tab-switch hotkeys (`d/c/s/m/a/t/f`) while a form is open. If you add a new screen with an overlay, add its `HasOverlay()` check to `inputActive()` in `app.go`.
 
-The `settings` screen uses an `action exerciseAction` field instead of `overlay tea.Model` (because it has two different form types), but it still implements `HasOverlay() bool { return m.action != actionNone }` and is included in `inputActive()`.
+The `settings` screen is theme-only and has no overlays; its `HasOverlay()` always returns false.
 
 ### Styles
 

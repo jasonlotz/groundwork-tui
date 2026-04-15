@@ -20,17 +20,18 @@ const (
 // tabDef describes one tab entry.
 type tabDef struct {
 	key    string // single letter, lowercase
+	prefix string // text before the key letter (empty for most tabs)
 	suffix string // text after the key letter
 }
 
 var tabDefs = []tabDef{
-	{"d", "ashboard"},
-	{"c", "ategories"},
-	{"s", "kills"},
-	{"m", "aterials"},
-	{"f", "itness"},
-	{"a", "ctivity"},
-	{"t", "heme"},
+	{"d", "", "ashboard"},
+	{"c", "", "ategories"},
+	{"s", "", "kills"},
+	{"m", "", "aterials"},
+	{"f", "", "itness"},
+	{"a", "", "ctivity"},
+	{"i", "Sett", "ngs"},
 }
 
 var (
@@ -121,7 +122,11 @@ func RenderTabBar(activeTab int, width int) string {
 			keyStyle = tabKeyActiveStyle
 			suffixStyle = tabSuffixActiveStyle
 		}
-		label := keyStyle.Render(strings.ToUpper(t.key)) + suffixStyle.Render(t.suffix)
+		keyText := strings.ToUpper(t.key)
+		if t.prefix != "" {
+			keyText = t.key // don't capitalize mid-word keys
+		}
+		label := suffixStyle.Render(t.prefix) + keyStyle.Render(keyText) + suffixStyle.Render(t.suffix)
 		if active {
 			parts = append(parts, tabActiveStyle.Render(label))
 		} else {
