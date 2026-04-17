@@ -1,8 +1,6 @@
-# AGENTS.md — Project Context for AI Coding Agents
+# Groundwork TUI
 
-## Goal
-
-Build and maintain groundwork-tui, a terminal UI client for the [Groundwork](https://groundwork.lotztech.com) learning tracker. Written in Go using the Charm (Bubble Tea) framework. Communicates with the Groundwork web app via its tRPC HTTP API using a personal API key.
+Terminal UI client for the [Groundwork](https://groundwork.lotztech.com) learning, fitness, and habit tracker. Written in Go using the Charm (Bubble Tea) framework. Communicates with the Groundwork web app via its tRPC HTTP API using a personal API key.
 
 The Groundwork web app source code (Next.js/tRPC) that this TUI depends on is located at `../groundwork` relative to this repo. Refer to it when adding or modifying API calls to verify procedure names, input shapes, and response types.
 
@@ -167,14 +165,3 @@ Two generic functions handle all calls: `query[T]` and `mutation[T]` in `interna
 
 The web app stores colors as Tailwind CSS class strings (e.g. `"bg-violet-300 text-violet-900"`). `common/tailwind.go` maps these to terminal hex colors. Use `common.ColorDot(color)` or `common.ColoredName(name, color)` — never parse Tailwind strings in screen code.
 
----
-
-## Commit Style
-
-Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
-
-Examples:
-
-- `feat: add bulk delete to materials screen`
-- `fix: forward WindowSizeMsg to all screens so list heights fill the terminal`
-- `docs: update README architecture section`
