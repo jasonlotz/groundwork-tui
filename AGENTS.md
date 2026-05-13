@@ -6,7 +6,7 @@ The Groundwork web app source (Next.js / tRPC) is at `../groundwork`. Refer to i
 
 ## Rules (shared)
 
-- Never run `git commit` or `git push` without explicit user permission
+- Never run `git commit` or `git push` without explicit user permission. Invoking `/ship-it` (or any equivalent "ship this" / "commit and push" instruction in the user's message) counts as that explicit permission — proceed without re-asking
 - `go build ./...` and `go vet ./...` must pass clean before suggesting a commit
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
 
